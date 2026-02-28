@@ -1,0 +1,16 @@
+# Node
+node_modules/
+.next/
+
+# Python
+__pycache__/
+*.pyc
+env/
+venv/
+
+# Database & Secrets
+.env
+prisma/.env
+
+# OS Files
+.DS_Store

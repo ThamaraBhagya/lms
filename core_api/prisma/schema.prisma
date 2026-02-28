@@ -1,0 +1,28 @@
+generator client {
+  provider             = "prisma-client-py"
+  interface            = "asyncio"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Your actual database table
+model Student {
+  id                 Int      @id @default(autoincrement())
+  age                Int
+  tuition_up_to_date Int      
+  scholarship        Int      
+  grades_1st_sem     Float
+  
+  // --- THE 3 NEW COLUMNS ---
+  admission_grade    Float    @default(127.0)
+  classes_passed     Int      @default(6)
+  debtor             Int      @default(0)
+  
+  ml_prediction      String?  
+  ml_confidence      Float?   
+
+  createdAt          DateTime @default(now())
+}
