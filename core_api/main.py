@@ -6,7 +6,7 @@ from prisma import Prisma
 from pydantic import BaseModel, Field
 import httpx
 import uuid
-
+import bcrypt
 import jwt
 from datetime import datetime, timedelta
 
@@ -29,30 +29,25 @@ async def startup():
 @app.on_event("shutdown")
 async def shutdown():
     await db.disconnect()
+
 # ==========================================
 # SECURITY SETUP
 # ==========================================
-import bcrypt
-import jwt
-from datetime import datetime, timedelta
-
 SECRET_KEY = "eduflow-super-secret-key-change-this" 
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24 * 7 # Tokens last for 1 week
 
 def verify_password(plain_password, hashed_password):
-    # bcrypt requires bytes, so we encode the strings first
     return bcrypt.checkpw(
         plain_password.encode('utf-8'), 
         hashed_password.encode('utf-8')
     )
 
 def get_password_hash(password):
-    # Generate a secure salt and hash the password
     pwd_bytes = password.encode('utf-8')
     salt = bcrypt.gensalt()
     hashed_bytes = bcrypt.hashpw(pwd_bytes, salt)
-    return hashed_bytes.decode('utf-8') # Convert back to string for the database
+    return hashed_bytes.decode('utf-8')
 
 def create_access_token(data: dict):
     to_encode = data.copy()
@@ -60,7 +55,7 @@ def create_access_token(data: dict):
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
-# Tells FastAPI where clients can go to get a token
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/login")
 
 async def get_current_user(token: str = Depends(oauth2_scheme)):
@@ -70,7 +65,6 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        # 1. Open the "Digital ID Card"
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id: str = payload.get("sub")
         if user_id is None:
@@ -78,41 +72,34 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
     except InvalidTokenError:
         raise credentials_exception
     
-    # 2. Check if the user still exists in the database
     user = await db.user.find_unique(where={"id": user_id})
     if user is None:
         raise credentials_exception
         
-    return user # The bouncer lets them in!
+    return user
 
 # ==========================================
-# AUTH MODELS
+# AUTH MODELS & ENDPOINTS
 # ==========================================
 class RegisterInput(BaseModel):
     email: str
     password: str
     firstName: str
     lastName: str
-    role: str = "STUDENT" # Or LECTURER, ADMIN
+    role: str = "STUDENT"
 
 class LoginInput(BaseModel):
     email: str
     password: str
 
-# ==========================================
-# AUTH ENDPOINTS
-# ==========================================
 @app.post("/api/auth/register")
 async def register(user: RegisterInput):
-    # 1. Check if the email is already taken
     existing_user = await db.user.find_unique(where={"email": user.email})
     if existing_user:
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    # 2. Hash the password (NEVER save plain text!)
     hashed_password = get_password_hash(user.password)
 
-    # 3. Save the new user to the database
     new_user = await db.user.create(
         data={
             "email": user.email,
@@ -126,16 +113,13 @@ async def register(user: RegisterInput):
 
 @app.post("/api/auth/login")
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    # 1. Find the user by email (OAuth2 forms always map the input to a field called 'username')
     user = await db.user.find_unique(where={"email": form_data.username})
     if not user:
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
-    # 2. Verify the password matches the hash
     if not verify_password(form_data.password, user.passwordHash):
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
-    # 3. Generate the "Digital ID Card" (JWT)
     access_token = create_access_token(
         data={"sub": user.id, "role": user.role}
     )
@@ -153,47 +137,62 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
     }
 
 # ==========================================
-# COURSE MODELS
+# ADMIN: LECTURER FETCH ENDPOINT
+# ==========================================
+@app.get("/api/users/lecturers")
+async def get_lecturers(current_user = Depends(get_current_user)):
+    if current_user.role != "ADMIN":
+        raise HTTPException(status_code=403, detail="Only Admins can view the lecturer roster.")
+    
+    lecturers = await db.user.find_many(where={"role": "LECTURER"})
+    return [{"id": l.id, "firstName": l.firstName, "lastName": l.lastName} for l in lecturers]
+
+# ==========================================
+# COURSE MODELS & ENDPOINTS
 # ==========================================
 class CourseInput(BaseModel):
     courseCode: str
     title: str
     description: str | None = None
+    lecturerId: str  # STRICT: Must assign lecturer
 
-# ==========================================
-# COURSE ENDPOINTS
-# ==========================================
 @app.post("/api/courses")
 async def create_course(course: CourseInput, current_user = Depends(get_current_user)):
-    # 1. Security Check: Only Lecturers or Admins can create courses!
-    if current_user.role not in ["LECTURER", "ADMIN"]:
-        raise HTTPException(status_code=403, detail="Only faculty can create courses")
+    # STRICT SECURITY: ONLY ADMINS
+    if current_user.role != "ADMIN":
+        raise HTTPException(status_code=403, detail="Only Administrators can create courses.")
 
-    # 2. Check if course code already exists
     existing_course = await db.course.find_unique(where={"courseCode": course.courseCode})
     if existing_course:
         raise HTTPException(status_code=400, detail="Course code already exists")
 
-    # 3. Create the course and link it to the Lecturer
+    lecturer = await db.user.find_unique(where={"id": course.lecturerId})
+    if not lecturer or lecturer.role != "LECTURER":
+        raise HTTPException(status_code=400, detail="Invalid Lecturer assigned.")
+
     new_course = await db.course.create(
         data={
             "courseCode": course.courseCode,
             "title": course.title,
             "description": course.description,
-            "lecturerId": current_user.id
+            "lecturerId": course.lecturerId 
         }
     )
     return {"message": "Course created successfully", "course": new_course}
 
 @app.get("/api/courses")
 async def get_courses(current_user = Depends(get_current_user)):
-    # Everyone can view courses, and we include the lecturer's details
     courses = await db.course.find_many(
         include={
             "lecturer": True,
-            "enrollments": True # We will use this later to count enrolled students!
+            "enrollments": True,
+            "assignments": {
+                "include": {
+                    "submissions": True 
+                }
+            }
         },
-        order={"courseCode": "asc"} # Sort them alphabetically
+        order={"courseCode": "asc"}
     )
     return courses
 
@@ -202,12 +201,10 @@ async def get_courses(current_user = Depends(get_current_user)):
 # ==========================================
 @app.post("/api/courses/{course_id}/enroll")
 async def enroll_in_course(course_id: str, current_user = Depends(get_current_user)):
-    # 1. Verify the course actually exists
     course = await db.course.find_unique(where={"id": course_id})
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
 
-    # 2. Prevent duplicate enrollments (a student can't join the same class twice)
     existing_enrollment = await db.enrollment.find_unique(
         where={
             "studentId_courseId": {
@@ -219,7 +216,6 @@ async def enroll_in_course(course_id: str, current_user = Depends(get_current_us
     if existing_enrollment:
         raise HTTPException(status_code=400, detail="You are already enrolled in this course")
 
-    # 3. Create the official link in the database
     new_enrollment = await db.enrollment.create(
         data={
             "studentId": current_user.id,
@@ -229,20 +225,60 @@ async def enroll_in_course(course_id: str, current_user = Depends(get_current_us
     
     return {"message": "Successfully enrolled!", "enrollment_id": new_enrollment.id}
 
-# 1. Updated to match the camelCase names in your new Prisma schema
-class StudentInput(BaseModel):
-    ageAtEnrollment: int = Field(..., ge=15, le=100, description="Age must be a realistic human age")
-    tuitionUpToDate: int = Field(..., ge=0, le=1, description="Must be exactly 0 or 1")
-    scholarship: int = Field(..., ge=0, le=1, description="Must be exactly 0 or 1")
-    grades1stSem: float = Field(..., ge=0.0, le=20.0, description="Portuguese grades are 0 to 20")
-    admissionGrade: float = Field(127.0, ge=0.0, le=200.0, description="Admission score 0 to 200")
-    classesPassed: int = Field(6, ge=0, le=6, description="Cannot pass more than 6 classes")
-    debtor: int = Field(0, ge=0, le=1, description="Must be exactly 0 or 1")
+# ==========================================
+# STUDENT ONBOARDING MODELS & ENDPOINTS
+# ==========================================
+class ProfileOnboardInput(BaseModel):
+    ageAtEnrollment: int = Field(..., ge=15, le=100)
+    tuitionUpToDate: int = Field(..., ge=0, le=1)
+    scholarship: int = Field(..., ge=0, le=1)
+    admissionGrade: float = Field(..., ge=0.0, le=200.0)
+    debtor: int = Field(..., ge=0, le=1)
 
+@app.post("/api/profile/onboard")
+async def onboard_profile(profile_data: ProfileOnboardInput, current_user = Depends(get_current_user)):
+    if current_user.role != "STUDENT":
+        raise HTTPException(status_code=403, detail="Only students can onboard.")
+    
+    existing = await db.studentprofile.find_unique(where={"userId": current_user.id})
+    if existing:
+        raise HTTPException(status_code=400, detail="Profile already exists.")
+
+    new_profile = await db.studentprofile.create(
+        data={
+            "userId": current_user.id,
+            "ageAtEnrollment": profile_data.ageAtEnrollment,
+            "tuitionUpToDate": profile_data.tuitionUpToDate,
+            "scholarship": profile_data.scholarship,
+            "admissionGrade": profile_data.admissionGrade,
+            "classesPassed": 0,  
+            "grades1stSem": 0.0, 
+            "debtor": profile_data.debtor
+        }
+    )
+    return {"message": "Onboarding complete!", "profile": new_profile}
+
+@app.get("/api/profile/me")
+async def get_my_profile(current_user = Depends(get_current_user)):
+    profile = await db.studentprofile.find_unique(where={"userId": current_user.id})
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    return profile
+
+# ==========================================
+# STUDENT SIMULATOR ANALYTICS ENDPOINTS
+# ==========================================
+class StudentInput(BaseModel):
+    ageAtEnrollment: int = Field(..., ge=15, le=100)
+    tuitionUpToDate: int = Field(..., ge=0, le=1)
+    scholarship: int = Field(..., ge=0, le=1)
+    grades1stSem: float = Field(..., ge=0.0, le=20.0)
+    admissionGrade: float = Field(127.0, ge=0.0, le=200.0)
+    classesPassed: int = Field(6, ge=0, le=6)
+    debtor: int = Field(0, ge=0, le=1)
 
 @app.post("/api/students")
 async def create_student(student: StudentInput, current_user = Depends(get_current_user)):
-    # Step A: Create a simulated User record
     dummy_email = f"sim_{uuid.uuid4()}@eduflow.local"
     new_user = await db.user.create(
         data={
@@ -254,7 +290,6 @@ async def create_student(student: StudentInput, current_user = Depends(get_curre
         }
     )
 
-    # Step B: Attach the ML Input data to their Profile
     new_profile = await db.studentprofile.create(
         data={
             "userId": new_user.id,
@@ -267,25 +302,17 @@ async def create_student(student: StudentInput, current_user = Depends(get_curre
             "debtor": student.debtor
         }
     )
-    
-    # We return the User ID so the frontend can immediately trigger the /analyze endpoint
     return {"message": "Student profile saved", "student_id": new_user.id}
 
-
-# Notice: student_id is now a string (UUID), not an int!
 @app.post("/api/students/{student_id}/analyze")
 async def analyze_student(student_id: str, current_user = Depends(get_current_user)):
-    
-    # Fetch the user AND their attached profile data
     user = await db.user.find_unique(
         where={"id": student_id},
         include={"profile": True}
     )
-    
     if not user or not user.profile:
         raise HTTPException(status_code=404, detail="Student profile not found")
 
-    # Package for ML Engine (Keeping your exact payload structure)
     ml_payload = {
         "features": {
             "student_age": user.profile.ageAtEnrollment,
@@ -298,7 +325,6 @@ async def analyze_student(student_id: str, current_user = Depends(get_current_us
         }
     }
 
-    # Send to ML Engine
     async with httpx.AsyncClient() as client:
         ml_response = await client.post(ML_SERVICE_URL, json=ml_payload)
         ml_response.raise_for_status()
@@ -307,7 +333,6 @@ async def analyze_student(student_id: str, current_user = Depends(get_current_us
         pred = prediction_data["prediction"]
         conf = prediction_data["confidence_scores"][pred]
 
-    # Step C: Save ML results to the new AIPrediction table instead of overwriting a single column
     new_prediction = await db.aiprediction.create(
         data={
             "studentId": student_id,
@@ -315,9 +340,7 @@ async def analyze_student(student_id: str, current_user = Depends(get_current_us
             "confidence": conf
         }
     )
-
     return {"message": "Analysis complete", "data": new_prediction}
-
 
 @app.get("/api/students")
 async def get_all_students(current_user = Depends(get_current_user)):
@@ -325,8 +348,151 @@ async def get_all_students(current_user = Depends(get_current_user)):
         where={"role": "STUDENT"},
         include={
             "profile": True,
-            "aiPredictions": True  # Fetch them all to bypass the Prisma Python nested sorting bug
+            "aiPredictions": True 
         },
-        order={"createdAt": "desc"}  # <-- Must be exactly 'order' at the top level in Python!
+        order={"createdAt": "desc"} 
     )
     return users
+
+# ==========================================
+# ASSIGNMENT & SUBMISSION MODELS
+# ==========================================
+class AssignmentInput(BaseModel):
+    title: str
+    description: str
+    dueDate: datetime  
+    maxScore: float = 20.0  
+
+class SubmissionInput(BaseModel):
+    contentUrl: str
+
+class GradeSubmissionInput(BaseModel):
+    score: float = Field(..., ge=0.0, le=20.0)
+
+# ==========================================
+# ASSIGNMENT & SUBMISSION ENDPOINTS
+# ==========================================
+@app.post("/api/courses/{course_id}/assignments")
+async def create_assignment(course_id: str, assignment: AssignmentInput, current_user = Depends(get_current_user)):
+    if current_user.role not in ["LECTURER", "ADMIN"]:
+        raise HTTPException(status_code=403, detail="Not authorized.")
+
+    course = await db.course.find_unique(where={"id": course_id})
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+
+    # STRICT SECURITY: Lecturer must own the course
+    if current_user.role == "LECTURER" and course.lecturerId != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only create assignments for your own courses.")
+
+    new_assignment = await db.assignment.create(
+        data={
+            "title": assignment.title,
+            "description": assignment.description,
+            "dueDate": assignment.dueDate,
+            "maxScore": assignment.maxScore,
+            "courseId": course_id
+        }
+    )
+    return {"message": "Assignment created!", "assignment": new_assignment}
+
+@app.post("/api/assignments/{assignment_id}/submit")
+async def submit_assignment(assignment_id: str, submission: SubmissionInput, current_user = Depends(get_current_user)):
+    if current_user.role != "STUDENT":
+        raise HTTPException(status_code=403, detail="Only students can submit assignments.")
+
+    assignment = await db.assignment.find_unique(where={"id": assignment_id})
+    if not assignment:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+
+    existing_sub = await db.submission.find_unique(
+        where={
+            "studentId_assignmentId": {
+                "studentId": current_user.id,
+                "assignmentId": assignment_id
+            }
+        }
+    )
+
+    if existing_sub:
+        updated_sub = await db.submission.update(
+            where={"id": existing_sub.id},
+            data={"contentUrl": submission.contentUrl, "submittedAt": datetime.utcnow()}
+        )
+        return {"message": "Submission updated!", "submission": updated_sub}
+    else:
+        new_sub = await db.submission.create(
+            data={
+                "studentId": current_user.id,
+                "assignmentId": assignment_id,
+                "contentUrl": submission.contentUrl
+            }
+        )
+        return {"message": "Assignment submitted successfully!", "submission": new_sub}
+
+@app.post("/api/submissions/{submission_id}/grade")
+async def grade_submission(submission_id: str, grade_data: GradeSubmissionInput, current_user = Depends(get_current_user)):
+    if current_user.role not in ["LECTURER", "ADMIN"]:
+        raise HTTPException(status_code=403, detail="Not authorized to grade.")
+
+    submission = await db.submission.find_unique(
+        where={"id": submission_id},
+        include={"assignment": {"include": {"course": True}}}
+    )
+    if not submission:
+        raise HTTPException(status_code=404, detail="Submission not found")
+
+    # STRICT SECURITY: Lecturer must own the course
+    if current_user.role == "LECTURER" and submission.assignment.course.lecturerId != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only grade submissions for your own courses.")
+
+    student_id = submission.studentId
+
+    await db.submission.update(
+        where={"id": submission_id},
+        data={"score": grade_data.score}
+    )
+
+    profile = await db.studentprofile.find_unique(where={"userId": student_id})
+    if not profile:
+        raise HTTPException(status_code=400, detail="Student has no profile. Cannot process AI prediction.")
+
+    new_classes_passed = profile.classesPassed + 1 if grade_data.score >= 10.0 else profile.classesPassed
+
+    profile = await db.studentprofile.update(
+        where={"userId": student_id},
+        data={
+            "grades1stSem": grade_data.score,
+            "classesPassed": new_classes_passed
+        }
+    )
+
+    ml_payload = {
+        "features": {
+            "student_age": profile.ageAtEnrollment,
+            "tuition_status": profile.tuitionUpToDate,
+            "scholarship": profile.scholarship,
+            "grades_1st_sem": profile.grades1stSem,
+            "admission_grade": profile.admissionGrade,
+            "classes_passed": profile.classesPassed,
+            "debtor": profile.debtor
+        }
+    }
+
+    try:
+        async with httpx.AsyncClient() as client:
+            ml_response = await client.post(ML_SERVICE_URL, json=ml_payload)
+            ml_response.raise_for_status()
+            
+            prediction_data = ml_response.json()
+            pred = prediction_data["prediction"]
+            conf = prediction_data["confidence_scores"][pred]
+
+        await db.aiprediction.create(
+            data={"studentId": student_id, "prediction": pred, "confidence": conf}
+        )
+        return {"message": "Submission graded and AI updated!", "score": grade_data.score, "prediction": pred}
+
+    except Exception as e:
+        print(f"ML Engine Error: {e}")
+        return {"message": "Grade saved, but ML Engine is offline.", "score": grade_data.score}
