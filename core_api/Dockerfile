@@ -1,23 +1,26 @@
-# 1. Use an official Python runtime as a parent image
+# 1. Use an official Python runtime
 FROM python:3.11-slim
 
-# 2. Set the working directory in the container
+# 2. Set the working directory
 WORKDIR /app
 
-# 3. Copy the requirements file into the container
+# 3. THE FIX: Install Node.js and npm so Prisma can download its engine
+RUN apt-get update && apt-get install -y nodejs npm && rm -rf /var/lib/apt/lists/*
+
+# 4. Copy the requirements file
 COPY requirements.txt .
 
-# 4. Install any needed packages specified in requirements.txt
+# 5. Install Python packages
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 5. Copy the rest of the application code
+# 6. Copy the rest of the application code
 COPY . .
 
-# 6. Generate the Prisma Client
+# 7. Generate the Prisma Client (This will work now!)
 RUN prisma generate
 
-# 7. Make port 4000 available to the world outside this container
+# 8. Expose port 4000
 EXPOSE 4000
 
-# 8. Run the FastAPI application
+# 9. Run the application
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "4000"]
