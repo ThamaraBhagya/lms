@@ -184,7 +184,11 @@ async def get_courses(current_user = Depends(get_current_user)):
     courses = await db.course.find_many(
         include={
             "lecturer": True,
-            "enrollments": True,
+            "enrollments": {
+                "include": {
+                    "student": True  # <-- NEW: Fetch the student details for the UI list!
+                }
+            },
             "assignments": {
                 "include": {
                     "submissions": True 
