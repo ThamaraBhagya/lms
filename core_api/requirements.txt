@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+prisma
+httpx
+pydantic
+passlib
+bcrypt 
+pyjwt
+python-multipart

@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  # 1. The React Dashboard
+  frontend:
+    build: ./eduflow-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - core-api
+
+  # 2. The Database Manager
+  core-api:
+    build: ./core_api
+    ports:
+      - "4000:4000"
+    env_file:
+      - ./core_api/.env  # Grabs your Neon PostgreSQL database password
+    depends_on:
+      - ml-engine
+
+  # 3. The AI Brain
+  ml-engine:
+    build: ./ml_core
+    ports:
+      - "8000:8000"

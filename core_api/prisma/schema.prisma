@@ -1,6 +1,5 @@
 generator client {
-  provider             = "prisma-client-py"
-  interface            = "asyncio"
+  provider = "prisma-client-py"
 }
 
 datasource db {
@@ -8,21 +7,103 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Your actual database table
-model Student {
-  id                 Int      @id @default(autoincrement())
-  age                Int
-  tuition_up_to_date Int      
-  scholarship        Int      
-  grades_1st_sem     Float
-  
-  // --- THE 3 NEW COLUMNS ---
-  admission_grade    Float    @default(127.0)
-  classes_passed     Int      @default(6)
-  debtor             Int      @default(0)
-  
-  ml_prediction      String?  
-  ml_confidence      Float?   
+enum Role {
+  STUDENT
+  LECTURER
+  ADMIN
+}
 
-  createdAt          DateTime @default(now())
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  passwordHash  String
+  firstName     String
+  lastName      String
+  role          Role     @default(STUDENT)
+  createdAt     DateTime @default(now())
+
+  // Relationships
+  profile        StudentProfile? // Holds the ML input data
+  aiPredictions  AIPrediction[]  // Holds the ML output data
+  teaching       Course[]        @relation("CourseTeacher")
+  enrollments    Enrollment[]
+  submissions    Submission[]
+}
+
+// 1. YOUR ML INPUTS
+model StudentProfile {
+  id                 String @id @default(uuid())
+  userId             String @unique
+  user               User   @relation(fields: [userId], references: [id])
+
+  ageAtEnrollment    Int
+  tuitionUpToDate    Int      @default(1)
+  scholarship        Int      @default(0)
+  admissionGrade     Float    @default(127.0)
+  classesPassed      Int      @default(6)
+  debtor             Int      @default(0)
+  grades1stSem       Float
+}
+
+// 2. YOUR ML OUTPUTS
+model AIPrediction {
+  id             String   @id @default(uuid())
+  studentId      String
+  student        User     @relation(fields: [studentId], references: [id])
+
+  prediction     String   // "GRADUATE", "DROPOUT"
+  confidence     Float    
+  predictedAt    DateTime @default(now())
+}
+
+model Course {
+  id          String   @id @default(uuid())
+  courseCode  String   @unique
+  title       String
+  description String?
+  
+  lecturerId  String
+  lecturer    User     @relation("CourseTeacher", fields: [lecturerId], references: [id])
+
+  enrollments Enrollment[]
+  assignments Assignment[]
+}
+
+model Enrollment {
+  id        String   @id @default(uuid())
+  studentId String
+  courseId  String
+  joinedAt  DateTime @default(now())
+
+  student   User   @relation(fields: [studentId], references: [id])
+  course    Course @relation(fields: [courseId], references: [id])
+
+  @@unique([studentId, courseId])
+}
+
+model Assignment {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  dueDate     DateTime
+  maxScore    Float
+  courseId    String
+
+  course      Course       @relation(fields: [courseId], references: [id])
+  submissions Submission[]
+}
+
+model Submission {
+  id           String   @id @default(uuid())
+  contentUrl   String?
+  score        Float?
+  submittedAt  DateTime @default(now())
+  
+  studentId    String
+  assignmentId String
+
+  student      User       @relation(fields: [studentId], references: [id])
+  assignment   Assignment @relation(fields: [assignmentId], references: [id])
+
+  @@unique([studentId, assignmentId])
 }
