@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
 
 export default function EduFlowDashboard() {
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000";
+  
   // --- Auth & User State ---
   const [token, setToken] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
@@ -111,7 +111,7 @@ export default function EduFlowDashboard() {
 
   const checkOnboardingStatus = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/profile/me`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await fetch('http://127.0.0.1:4000/api/profile/me', { headers: { 'Authorization': `Bearer ${token}` } });
       if (res.status === 404) setHasProfile(false);
       else if (res.ok) setHasProfile(true);
     } catch (err) { console.error(err); }
@@ -121,7 +121,7 @@ export default function EduFlowDashboard() {
     e.preventDefault();
     setIsOnboarding(true);
     try {
-      const res = await fetch(`${API_URL}/api/profile/onboard`, {
+      const res = await fetch('http://127.0.0.1:4000/api/profile/onboard', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ ageAtEnrollment: onboardAge, admissionGrade: onboardAdmission, tuitionUpToDate: onboardTuition, scholarship: onboardScholarship, debtor: onboardDebtor })
@@ -134,7 +134,7 @@ export default function EduFlowDashboard() {
 
   const openEditProfileModal = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/profile/me`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await fetch('http://127.0.0.1:4000/api/profile/me', { headers: { 'Authorization': `Bearer ${token}` } });
       if (res.ok) {
         const data = await res.json();
         setEditAge(data.ageAtEnrollment);
@@ -151,7 +151,7 @@ export default function EduFlowDashboard() {
     e.preventDefault();
     setIsUpdatingProfile(true);
     try {
-      const res = await fetch(`${API_URL}/api/profile/me`, {
+      const res = await fetch('http://127.0.0.1:4000/api/profile/me', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ ageAtEnrollment: editAge, tuitionUpToDate: editTuition, scholarship: editScholarship, debtor: editDebtor })
@@ -168,7 +168,7 @@ export default function EduFlowDashboard() {
       const formData = new URLSearchParams();
       formData.append("username", loginEmail);
       formData.append("password", loginPassword);
-      const res = await fetch(`${API_URL}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: formData });
+      const res = await fetch('http://127.0.0.1:4000/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: formData });
       if (!res.ok) throw new Error("Invalid credentials");
       const data = await res.json();
       
@@ -192,7 +192,7 @@ export default function EduFlowDashboard() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch(`${API_URL}/api/auth/register`, {
+      const res = await fetch('http://127.0.0.1:4000/api/auth/register', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ firstName: regFirstName, lastName: regLastName, email: regEmail, password: regPassword, role: regRole })
       });
@@ -212,7 +212,7 @@ export default function EduFlowDashboard() {
   const fetchStudents = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/students`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await fetch('http://127.0.0.1:4000/api/students', { headers: { 'Authorization': `Bearer ${token}` } });
       if (res.status === 401) return handleLogout();
       const data = await res.json(); setStudents(data);
     } catch (error) { console.error(error); } finally { setIsLoading(false); }
@@ -220,14 +220,14 @@ export default function EduFlowDashboard() {
 
   const fetchCourses = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/courses`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await fetch('http://127.0.0.1:4000/api/courses', { headers: { 'Authorization': `Bearer ${token}` } });
       if (res.ok) { const data = await res.json(); setCourses(data); }
     } catch (error) { console.error(error); }
   };
 
   const fetchLecturers = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/users/lecturers`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await fetch('http://127.0.0.1:4000/api/users/lecturers', { headers: { 'Authorization': `Bearer ${token}` } });
       if (res.ok) { const data = await res.json(); setLecturers(data); }
     } catch (error) { console.error(error); }
   };
@@ -237,7 +237,7 @@ export default function EduFlowDashboard() {
     if (!newCourseLecturerId) return showToast("You must assign a lecturer to this course.", "error");
     setIsCreatingCourse(true);
     try {
-      const res = await fetch(`${API_URL}/api/courses`, {
+      const res = await fetch('http://127.0.0.1:4000/api/courses', {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ courseCode: newCourseCode, title: newCourseTitle, description: newCourseDesc, lecturerId: newCourseLecturerId })
       });
@@ -257,7 +257,7 @@ export default function EduFlowDashboard() {
     
     setIsEnrolling(true);
     try {
-      const res = await fetch(`${API_URL}/api/courses/${enrollCourse.id}/enroll`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await fetch(`http://127.0.0.1:4000/api/courses/${enrollCourse.id}/enroll`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
       if (!res.ok) { const err = await res.json(); throw new Error(err.detail || "Failed to enroll"); }
       await fetchCourses();
       showToast(`Successfully enrolled in ${enrollCourse.title}!`, "success");
@@ -269,7 +269,7 @@ export default function EduFlowDashboard() {
     e.preventDefault();
     try {
       const isoDate = new Date(assignDue).toISOString();
-      const res = await fetch(`${API_URL}/api/courses/${selectedCourse.id}/assignments`, {
+      const res = await fetch(`http://127.0.0.1:4000/api/courses/${selectedCourse.id}/assignments`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ title: assignTitle, description: assignDesc, dueDate: isoDate, maxScore: 20 })
       });
@@ -283,7 +283,7 @@ export default function EduFlowDashboard() {
   const handleSubmitWork = async (assignmentId: string) => {
     if (!subUrl) return showToast("Please enter a URL to submit.", "error");
     try {
-      const res = await fetch(`${API_URL}/api/assignments/${assignmentId}/submit`, {
+      const res = await fetch(`http://127.0.0.1:4000/api/assignments/${assignmentId}/submit`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ contentUrl: subUrl })
       });
@@ -297,7 +297,7 @@ export default function EduFlowDashboard() {
     const scoreToSubmit = gradeScores[submissionId];
     if (!scoreToSubmit) return showToast("Please enter a score.", "error");
     try {
-      const res = await fetch(`${API_URL}/api/submissions/${submissionId}/grade`, {
+      const res = await fetch(`http://127.0.0.1:4000/api/submissions/${submissionId}/grade`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ score: Number(scoreToSubmit) })
       });
