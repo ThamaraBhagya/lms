@@ -1,0 +1,33 @@
+name: EduFlow CI Pipeline
+
+# 1. When should this pipeline run?
+on:
+  push:
+    branches: [ "master", "main" ]
+  pull_request:
+    branches: [ "master", "main" ]
+
+# 2. What jobs should it execute?
+jobs:
+  docker-build-test:
+    name: Verify Docker Build
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step A: Download the code from the repository
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # Step B: Set up Docker inside the GitHub server
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Step C: Try to build the whole ecosystem!
+      # We use --no-cache to ensure it builds cleanly every time
+      - name: Test Docker Compose Build
+        run: docker-compose build --no-cache
+        
+      # Step D: (Optional) Print success message
+      - name: Build Status
+        if: success()
+        run: echo "All Docker containers built successfully! Ready for merge."

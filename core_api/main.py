@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 app = FastAPI(title="EduFlow Core API")
 db = Prisma()
 
-ML_SERVICE_URL = "http://127.0.0.1:8000/predict"
+ML_SERVICE_URL = "http://ml-engine:8000/predict"
 
 app.add_middleware(
     CORSMiddleware,

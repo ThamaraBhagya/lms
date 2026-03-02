@@ -336,7 +336,7 @@ export default function EduFlowDashboard() {
   const pieData = generatePieChartData(); const barData = generateBarChartData();
 
   // =======================================
-  // VIEW: AUTHENTICATION (Login / Register)
+  // VIEW: AUTHETICATION (Login / Register)
   // =======================================
   if (!token) {
     return (
