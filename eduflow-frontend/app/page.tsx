@@ -19,7 +19,7 @@ export default function EduFlowDashboard() {
   const [regRole, setRegRole] = useState("STUDENT");
   const [authError, setAuthError] = useState("");
 
-  // --- Onboarding State ---
+  // --- Onboarding & Profile State ---
   const [hasProfile, setHasProfile] = useState<boolean | null>(null);
   const [isOnboarding, setIsOnboarding] = useState(false);
   const [onboardAge, setOnboardAge] = useState(20);
@@ -28,11 +28,18 @@ export default function EduFlowDashboard() {
   const [onboardScholarship, setOnboardScholarship] = useState(0);
   const [onboardDebtor, setOnboardDebtor] = useState(0);
 
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [editAge, setEditAge] = useState(20);
+  const [editTuition, setEditTuition] = useState(1);
+  const [editScholarship, setEditScholarship] = useState(0);
+  const [editDebtor, setEditDebtor] = useState(0);
+  const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
+
   // --- Dashboard State ---
   const [currentView, setCurrentView] = useState<'students' | 'courses'>('courses');
   const [students, setStudents] = useState<any[]>([]);
   const [courses, setCourses] = useState<any[]>([]);
-  const [lecturers, setLecturers] = useState<any[]>([]); // NEW: Store available lecturers
+  const [lecturers, setLecturers] = useState<any[]>([]); 
   const [isLoading, setIsLoading] = useState(true);
 
   // --- Modals State ---
@@ -40,7 +47,7 @@ export default function EduFlowDashboard() {
   const [newCourseCode, setNewCourseCode] = useState("");
   const [newCourseTitle, setNewCourseTitle] = useState("");
   const [newCourseDesc, setNewCourseDesc] = useState("");
-  const [newCourseLecturerId, setNewCourseLecturerId] = useState(""); // NEW: Assigning lecturer
+  const [newCourseLecturerId, setNewCourseLecturerId] = useState(""); 
   const [isCreatingCourse, setIsCreatingCourse] = useState(false);
   
   const [selectedCourse, setSelectedCourse] = useState<any>(null);
@@ -64,11 +71,8 @@ export default function EduFlowDashboard() {
   useEffect(() => {
     if (token) {
       if (userRole === 'STUDENT') checkOnboardingStatus();
-      else { 
-        setHasProfile(true); 
-        fetchStudents(); 
-      }
-      if (userRole === 'ADMIN') fetchLecturers(); // Fetch faculty roster for Admins
+      else { setHasProfile(true); fetchStudents(); }
+      if (userRole === 'ADMIN') fetchLecturers(); 
       fetchCourses();
     }
   }, [token, userRole]);
@@ -100,6 +104,35 @@ export default function EduFlowDashboard() {
       if (!res.ok) throw new Error("Failed to onboard");
       setHasProfile(true);
     } catch (err) { alert("Error saving profile."); } finally { setIsOnboarding(false); }
+  };
+
+  const openEditProfileModal = async () => {
+    try {
+      const res = await fetch('http://127.0.0.1:4000/api/profile/me', { headers: { 'Authorization': `Bearer ${token}` } });
+      if (res.ok) {
+        const data = await res.json();
+        setEditAge(data.ageAtEnrollment);
+        setEditTuition(data.tuitionUpToDate);
+        setEditScholarship(data.scholarship);
+        setEditDebtor(data.debtor);
+        setShowProfileModal(true);
+      }
+    } catch (err) { alert("Failed to load profile data."); }
+  };
+
+  const handleUpdateProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsUpdatingProfile(true);
+    try {
+      const res = await fetch('http://127.0.0.1:4000/api/profile/me', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ ageAtEnrollment: editAge, tuitionUpToDate: editTuition, scholarship: editScholarship, debtor: editDebtor })
+      });
+      if (!res.ok) throw new Error("Failed to update profile");
+      alert("Profile successfully updated! Your AI Prediction has been recalculated.");
+      setShowProfileModal(false);
+    } catch (err) { alert("Error updating profile."); } finally { setIsUpdatingProfile(false); }
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -229,8 +262,6 @@ export default function EduFlowDashboard() {
     } catch (error: any) { alert(error.message); }
   };
 
-  // --- HELPER FOR RBAC ---
-  // Checks if the logged-in user is allowed to manage the currently selected course
   const isCourseOwner = selectedCourse && (userRole === 'ADMIN' || (userRole === 'LECTURER' && selectedCourse.lecturerId === userId));
 
 
@@ -306,6 +337,27 @@ export default function EduFlowDashboard() {
   return (
     <main className="min-h-screen bg-gray-50 p-8 font-sans text-slate-800 relative">
       
+      {/* EDIT PROFILE MODAL */}
+      {showProfileModal && (
+        <div className="fixed inset-0 bg-slate-900/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden">
+            <div className="px-6 py-4 border-b border-gray-100 flex justify-between items-center"><h3 className="text-lg font-bold text-slate-900">Edit My Profile</h3><button onClick={() => setShowProfileModal(false)} className="text-slate-400 hover:text-slate-600 font-bold">&times;</button></div>
+            <form onSubmit={handleUpdateProfile} className="p-6 space-y-4">
+              <div><label className="block text-sm font-semibold text-slate-700 mb-1">Age</label><input type="number" value={editAge} onChange={(e) => setEditAge(Number(e.target.value))} className="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none" required /></div>
+              <div><label className="block text-sm font-semibold text-slate-700 mb-1">Tuition Status</label><select value={editTuition} onChange={(e) => setEditTuition(Number(e.target.value))} className="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none"><option value={1}>Up to Date</option><option value={0}>In Debt</option></select></div>
+              <div><label className="block text-sm font-semibold text-slate-700 mb-1">Scholarship</label><select value={editScholarship} onChange={(e) => setEditScholarship(Number(e.target.value))} className="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none"><option value={1}>Yes (Active)</option><option value={0}>No</option></select></div>
+              <div><label className="block text-sm font-semibold text-slate-700 mb-1">Other Institutional Debt</label><select value={editDebtor} onChange={(e) => setEditDebtor(Number(e.target.value))} className="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none"><option value={1}>Yes (Owes Money)</option><option value={0}>No (Clear)</option></select></div>
+              <div className="flex gap-3 mt-6">
+                <button type="button" onClick={() => setShowProfileModal(false)} className="flex-1 py-2 bg-gray-100 text-slate-700 rounded-lg font-semibold hover:bg-gray-200 transition-colors">Cancel</button>
+                <button type="submit" disabled={isUpdatingProfile} className="flex-1 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:bg-blue-400">
+                  {isUpdatingProfile ? "Updating..." : "Save Changes"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* COURSE DETAILS MODAL */}
       {selectedCourse && (
         <div className="fixed inset-0 bg-slate-900/50 flex justify-end z-40">
@@ -319,7 +371,6 @@ export default function EduFlowDashboard() {
               <button onClick={() => setSelectedCourse(null)} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200 text-slate-500">&times;</button>
             </div>
 
-            {/* STRICT RBAC: Only Admin or the Assigned Lecturer can create assignments */}
             {isCourseOwner && (
                <div className="mb-8 border-b border-gray-100 pb-6">
                  <button onClick={() => setShowAssignmentModal(true)} className="px-4 py-2 bg-slate-900 text-white rounded-lg text-sm font-semibold hover:bg-slate-800 transition-colors">+ Create Assignment</button>
@@ -362,7 +413,6 @@ export default function EduFlowDashboard() {
                         </div>
                       )}
 
-                      {/* STRICT RBAC: Only Course Owners can grade */}
                       {isCourseOwner && (
                         <div className="mt-4 pt-4 border-t border-gray-200">
                           <h5 className="text-sm font-bold text-slate-700 mb-3">Student Submissions ({assignment.submissions?.length || 0})</h5>
@@ -419,8 +469,6 @@ export default function EduFlowDashboard() {
             <form onSubmit={handleCreateCourse} className="p-6 space-y-4">
               <div><label className="block text-sm font-semibold text-slate-700 mb-1">Course Code</label><input type="text" placeholder="e.g., SENG1222" required value={newCourseCode} onChange={(e) => setNewCourseCode(e.target.value)} className="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none uppercase" /></div>
               <div><label className="block text-sm font-semibold text-slate-700 mb-1">Course Title</label><input type="text" placeholder="e.g., Database Management Systems" required value={newCourseTitle} onChange={(e) => setNewCourseTitle(e.target.value)} className="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none" /></div>
-              
-              {/* NEW: Admin assigns the Lecturer here */}
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-1">Assign Lecturer</label>
                 <select required value={newCourseLecturerId} onChange={(e) => setNewCourseLecturerId(e.target.value)} className="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none">
@@ -430,7 +478,6 @@ export default function EduFlowDashboard() {
                   ))}
                 </select>
               </div>
-
               <div><label className="block text-sm font-semibold text-slate-700 mb-1">Description</label><textarea placeholder="Brief overview of the module..." rows={3} value={newCourseDesc} onChange={(e) => setNewCourseDesc(e.target.value)} className="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none"></textarea></div>
               <div className="flex gap-3 mt-6"><button type="button" onClick={() => setShowCourseModal(false)} className="flex-1 py-2 bg-gray-100 text-slate-700 rounded-lg font-semibold hover:bg-gray-200 transition-colors">Cancel</button><button type="submit" disabled={isCreatingCourse} className="flex-1 py-2 bg-slate-900 text-white rounded-lg font-semibold hover:bg-slate-800 transition-colors disabled:bg-slate-400">Save Course</button></div>
             </form>
@@ -447,22 +494,37 @@ export default function EduFlowDashboard() {
           </div>
         </div>
         <div className="flex items-center gap-4 mb-2">
+          {userRole === 'STUDENT' && (
+             <button onClick={openEditProfileModal} className="px-3 py-1.5 bg-blue-50 text-blue-700 text-sm font-semibold rounded-md hover:bg-blue-100 transition-colors mr-2">
+               Manage Profile
+             </button>
+          )}
           <span className="px-3 py-1 bg-slate-200 text-slate-700 text-xs font-bold rounded-full uppercase">{userRole}</span>
           <button onClick={handleLogout} className="px-4 py-2 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 text-sm font-semibold transition-colors">Sign Out</button>
         </div>
       </header>
 
+      {/* --- EXPANDED STUDENT ANALYTICS TABLE --- */}
       {currentView === 'students' && userRole !== 'STUDENT' && (
         <section>
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-bold tracking-tight text-slate-900">Enrolled Students</h2>
-            <p className="text-sm text-slate-500">Automated predictions based on recent grades.</p>
+            <p className="text-sm text-slate-500">Automated predictions based on comprehensive profile data.</p>
           </div>
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-             <table className="w-full text-left border-collapse">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-x-auto">
+             <table className="w-full text-left border-collapse whitespace-nowrap">
                 <thead>
-                  <tr className="bg-gray-100/50 border-b border-gray-200 text-sm font-semibold text-slate-600">
-                    <th className="p-4">Student</th><th className="p-4">Age</th><th className="p-4">Latest Grade</th><th className="p-4">AI Prediction</th><th className="p-4">Confidence</th>
+                  <tr className="bg-gray-100/50 border-b border-gray-200 text-xs font-bold text-slate-600 uppercase tracking-wider">
+                    <th className="p-4">Student</th>
+                    <th className="p-4 text-center">Age</th>
+                    <th className="p-4 text-center">Admission</th>
+                    <th className="p-4 text-center">Tuition Paid</th>
+                    <th className="p-4 text-center">Scholarship</th>
+                    <th className="p-4 text-center">In Debt</th>
+                    <th className="p-4 text-center">Classes Passed</th>
+                    <th className="p-4 text-center bg-blue-50">Avg Grade</th>
+                    <th className="p-4">AI Prediction</th>
+                    <th className="p-4">Confidence</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -470,19 +532,33 @@ export default function EduFlowDashboard() {
                     const predictionRec = student.aiPredictions && student.aiPredictions.length > 0 ? student.aiPredictions[0] : null;
                     const hasProf = !!student.profile;
                     return (
-                      <tr key={student.id} className="hover:bg-gray-50 transition-colors">
+                      <tr key={student.id} className="hover:bg-gray-50 transition-colors text-sm">
                         <td className="p-4">
                           <div className="font-semibold text-slate-900">{student.firstName} {student.lastName}</div>
                           <div className="text-xs text-slate-500">#{student.id.substring(0, 8)}</div>
                         </td>
-                        <td className="p-4 text-slate-600">{hasProf ? student.profile.ageAtEnrollment : '-'}</td>
-                        <td className="p-4 text-slate-600 font-medium">{hasProf ? student.profile.grades1stSem : '-'}</td>
+                        <td className="p-4 text-center text-slate-600">{hasProf ? student.profile.ageAtEnrollment : '-'}</td>
+                        <td className="p-4 text-center text-slate-600">{hasProf ? student.profile.admissionGrade : '-'}</td>
+                        
+                        <td className="p-4 text-center">
+                          {hasProf ? (student.profile.tuitionUpToDate ? <span className="text-emerald-600 font-bold">Yes</span> : <span className="text-rose-600 font-bold">No</span>) : '-'}
+                        </td>
+                        <td className="p-4 text-center">
+                          {hasProf ? (student.profile.scholarship ? <span className="text-emerald-600 font-bold">Yes</span> : <span className="text-slate-400">No</span>) : '-'}
+                        </td>
+                        <td className="p-4 text-center">
+                          {hasProf ? (student.profile.debtor ? <span className="text-rose-600 font-bold">Yes</span> : <span className="text-emerald-600">No</span>) : '-'}
+                        </td>
+
+                        <td className="p-4 text-center font-medium text-slate-800">{hasProf ? student.profile.classesPassed : '-'}</td>
+                        <td className="p-4 text-center font-bold text-blue-700 bg-blue-50/30">{hasProf ? student.profile.grades1stSem : '-'}</td>
+                        
                         <td className="p-4">
                           {predictionRec ? (
                              <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${predictionRec.prediction === 'Graduate' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>{predictionRec.prediction}</span>
                           ) : <span className="px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500">{hasProf ? "Pending AI" : "Awaiting Profile"}</span>}
                         </td>
-                        <td className="p-4 text-sm font-semibold text-slate-700">{predictionRec?.confidence ? `${predictionRec.confidence}%` : '-'}</td>
+                        <td className="p-4 font-semibold text-slate-700">{predictionRec?.confidence ? `${predictionRec.confidence}%` : '-'}</td>
                       </tr>
                     );
                   })}
@@ -496,8 +572,6 @@ export default function EduFlowDashboard() {
         <section>
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-xl font-bold tracking-tight text-slate-900">Active Modules</h2>
-            
-            {/* STRICT RBAC: Only Admin can spawn courses now */}
             {userRole === 'ADMIN' && (<button onClick={() => setShowCourseModal(true)} className="px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 text-sm font-semibold transition-colors">+ New Course</button>)}
           </div>
           

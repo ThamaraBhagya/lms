@@ -154,11 +154,10 @@ class CourseInput(BaseModel):
     courseCode: str
     title: str
     description: str | None = None
-    lecturerId: str  # STRICT: Must assign lecturer
+    lecturerId: str 
 
 @app.post("/api/courses")
 async def create_course(course: CourseInput, current_user = Depends(get_current_user)):
-    # STRICT SECURITY: ONLY ADMINS
     if current_user.role != "ADMIN":
         raise HTTPException(status_code=403, detail="Only Administrators can create courses.")
 
@@ -222,7 +221,6 @@ async def enroll_in_course(course_id: str, current_user = Depends(get_current_us
             "courseId": course_id
         }
     )
-    
     return {"message": "Successfully enrolled!", "enrollment_id": new_enrollment.id}
 
 # ==========================================
@@ -264,6 +262,61 @@ async def get_my_profile(current_user = Depends(get_current_user)):
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found")
     return profile
+
+class ProfileUpdateInput(BaseModel):
+    ageAtEnrollment: int = Field(..., ge=15, le=100)
+    tuitionUpToDate: int = Field(..., ge=0, le=1)
+    scholarship: int = Field(..., ge=0, le=1)
+    debtor: int = Field(..., ge=0, le=1)
+
+@app.put("/api/profile/me")
+async def update_my_profile(profile_data: ProfileUpdateInput, current_user = Depends(get_current_user)):
+    if current_user.role != "STUDENT":
+        raise HTTPException(status_code=403, detail="Only students can update their profile.")
+
+    profile = await db.studentprofile.find_unique(where={"userId": current_user.id})
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found")
+
+    updated_profile = await db.studentprofile.update(
+        where={"userId": current_user.id},
+        data={
+            "ageAtEnrollment": profile_data.ageAtEnrollment,
+            "tuitionUpToDate": profile_data.tuitionUpToDate,
+            "scholarship": profile_data.scholarship,
+            "debtor": profile_data.debtor
+        }
+    )
+
+    ml_payload = {
+        "features": {
+            "student_age": updated_profile.ageAtEnrollment,
+            "tuition_status": updated_profile.tuitionUpToDate,
+            "scholarship": updated_profile.scholarship,
+            "grades_1st_sem": updated_profile.grades1stSem,
+            "admission_grade": updated_profile.admissionGrade,
+            "classes_passed": updated_profile.classesPassed,
+            "debtor": updated_profile.debtor
+        }
+    }
+
+    try:
+        async with httpx.AsyncClient() as client:
+            ml_response = await client.post(ML_SERVICE_URL, json=ml_payload)
+            ml_response.raise_for_status()
+
+            prediction_data = ml_response.json()
+            pred = prediction_data["prediction"]
+            conf = prediction_data["confidence_scores"][pred]
+
+        await db.aiprediction.create(
+            data={"studentId": current_user.id, "prediction": pred, "confidence": conf}
+        )
+        return {"message": "Profile updated and AI Prediction recalculated!", "prediction": pred}
+
+    except Exception as e:
+        print(f"ML Engine Error: {e}")
+        return {"message": "Profile updated, but ML Engine is offline."}
 
 # ==========================================
 # STUDENT SIMULATOR ANALYTICS ENDPOINTS
@@ -348,7 +401,11 @@ async def get_all_students(current_user = Depends(get_current_user)):
         where={"role": "STUDENT"},
         include={
             "profile": True,
-            "aiPredictions": True 
+            "aiPredictions": {
+                "orderBy": {
+                    "predictedAt": "desc" 
+                }
+            } 
         },
         order={"createdAt": "desc"} 
     )
@@ -381,7 +438,6 @@ async def create_assignment(course_id: str, assignment: AssignmentInput, current
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
 
-    # STRICT SECURITY: Lecturer must own the course
     if current_user.role == "LECTURER" and course.lecturerId != current_user.id:
         raise HTTPException(status_code=403, detail="You can only create assignments for your own courses.")
 
@@ -430,6 +486,7 @@ async def submit_assignment(assignment_id: str, submission: SubmissionInput, cur
         )
         return {"message": "Assignment submitted successfully!", "submission": new_sub}
 
+# --- THE CORRECTED GRADING ENGINE ---
 @app.post("/api/submissions/{submission_id}/grade")
 async def grade_submission(submission_id: str, grade_data: GradeSubmissionInput, current_user = Depends(get_current_user)):
     if current_user.role not in ["LECTURER", "ADMIN"]:
@@ -442,12 +499,12 @@ async def grade_submission(submission_id: str, grade_data: GradeSubmissionInput,
     if not submission:
         raise HTTPException(status_code=404, detail="Submission not found")
 
-    # STRICT SECURITY: Lecturer must own the course
     if current_user.role == "LECTURER" and submission.assignment.course.lecturerId != current_user.id:
         raise HTTPException(status_code=403, detail="You can only grade submissions for your own courses.")
 
     student_id = submission.studentId
 
+    # 1. Save the new grade for this specific assignment
     await db.submission.update(
         where={"id": submission_id},
         data={"score": grade_data.score}
@@ -457,16 +514,36 @@ async def grade_submission(submission_id: str, grade_data: GradeSubmissionInput,
     if not profile:
         raise HTTPException(status_code=400, detail="Student has no profile. Cannot process AI prediction.")
 
-    new_classes_passed = profile.classesPassed + 1 if grade_data.score >= 10.0 else profile.classesPassed
+    # 2. Fetch ALL of the student's submissions across the entire database to calculate their true Average Grade
+    all_student_submissions = await db.submission.find_many(
+        where={"studentId": student_id}
+    )
+    
+    # Filter out ungraded submissions
+    graded_subs = [s for s in all_student_submissions if s.score is not None]
 
+    if graded_subs:
+        # Calculate the true average grade
+        total_score = sum(s.score for s in graded_subs)
+        average_grade = round(total_score / len(graded_subs), 2)
+
+        # Accurately count how many distinct assignments they passed (scored >= 10.0)
+        classes_passed = sum(1 for s in graded_subs if s.score >= 10.0)
+        classes_passed = min(classes_passed, 6) # Cap it at 6 to match the ML constraint limit
+    else:
+        average_grade = profile.grades1stSem
+        classes_passed = profile.classesPassed
+
+    # 3. Update their Profile with the mathematically correct aggregates
     profile = await db.studentprofile.update(
         where={"userId": student_id},
         data={
-            "grades1stSem": grade_data.score,
-            "classesPassed": new_classes_passed
+            "grades1stSem": average_grade,
+            "classesPassed": classes_passed
         }
     )
 
+    # 4. Trigger the AI Engine with the updated average!
     ml_payload = {
         "features": {
             "student_age": profile.ageAtEnrollment,
@@ -491,7 +568,7 @@ async def grade_submission(submission_id: str, grade_data: GradeSubmissionInput,
         await db.aiprediction.create(
             data={"studentId": student_id, "prediction": pred, "confidence": conf}
         )
-        return {"message": "Submission graded and AI updated!", "score": grade_data.score, "prediction": pred}
+        return {"message": "Submission graded and AI updated with average!", "score": grade_data.score, "prediction": pred}
 
     except Exception as e:
         print(f"ML Engine Error: {e}")
