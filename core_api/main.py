@@ -490,7 +490,7 @@ async def submit_assignment(assignment_id: str, submission: SubmissionInput, cur
         )
         return {"message": "Assignment submitted successfully!", "submission": new_sub}
 
-# --- THE CORRECTED GRADING ENGINE ---
+# --- THE NEW, FAIR GRADING ENGINE ---
 @app.post("/api/submissions/{submission_id}/grade")
 async def grade_submission(submission_id: str, grade_data: GradeSubmissionInput, current_user = Depends(get_current_user)):
     if current_user.role not in ["LECTURER", "ADMIN"]:
@@ -508,7 +508,7 @@ async def grade_submission(submission_id: str, grade_data: GradeSubmissionInput,
 
     student_id = submission.studentId
 
-    # 1. Save the new grade for this specific assignment
+    # 1. Save the new grade
     await db.submission.update(
         where={"id": submission_id},
         data={"score": grade_data.score}
@@ -518,36 +518,52 @@ async def grade_submission(submission_id: str, grade_data: GradeSubmissionInput,
     if not profile:
         raise HTTPException(status_code=400, detail="Student has no profile. Cannot process AI prediction.")
 
-    # 2. Fetch ALL of the student's submissions across the entire database to calculate their true Average Grade
+    # 2. Fetch all courses the student is enrolled in & count total published assignments
+    enrollments = await db.enrollment.find_many(
+        where={"studentId": student_id},
+        include={"course": {"include": {"assignments": True}}}
+    )
+    
+    total_published_assignments = sum(len(e.course.assignments) for e in enrollments)
+
+    # 3. Fetch all submissions to calculate true average and passed count
     all_student_submissions = await db.submission.find_many(
         where={"studentId": student_id}
     )
     
-    # Filter out ungraded submissions
     graded_subs = [s for s in all_student_submissions if s.score is not None]
 
     if graded_subs:
-        # Calculate the true average grade
         total_score = sum(s.score for s in graded_subs)
         average_grade = round(total_score / len(graded_subs), 2)
-
-        # Accurately count how many distinct assignments they passed (scored >= 10.0)
-        classes_passed = sum(1 for s in graded_subs if s.score >= 10.0)
-        classes_passed = min(classes_passed, 6) # Cap it at 6 to match the ML constraint limit
+        # STRICT PASS CHECK: Only count if score is >= 10.0
+        actual_passed_count = sum(1 for s in graded_subs if s.score >= 10.0)
     else:
         average_grade = profile.grades1stSem
-        classes_passed = profile.classesPassed
+        actual_passed_count = profile.classesPassed
 
-    # 3. Update their Profile with the mathematically correct aggregates
+    # 4. Update Profile with the TRUTH (Actual counts, not scaled)
     profile = await db.studentprofile.update(
         where={"userId": student_id},
         data={
             "grades1stSem": average_grade,
-            "classesPassed": classes_passed
+            "classesPassed": actual_passed_count
         }
     )
 
-    # 4. Trigger the AI Engine with the updated average!
+    # 5. THE GUARDRAIL: Do not predict if there isn't enough data yet
+    if total_published_assignments < 3:
+        return {
+            "message": "Grade saved! AI prediction paused until at least 3 assignments are published.",
+            "score": grade_data.score,
+            "prediction": "PENDING_DATA"
+        }
+
+    # 6. PROPORTIONAL SCALING: Map their success rate to the ML Model's baseline (6.0)
+    completion_ratio = actual_passed_count / total_published_assignments
+    ml_scaled_passed = round(completion_ratio * 6) 
+
+    # 7. Trigger the AI Engine with the fair, scaled data
     ml_payload = {
         "features": {
             "student_age": profile.ageAtEnrollment,
@@ -555,7 +571,7 @@ async def grade_submission(submission_id: str, grade_data: GradeSubmissionInput,
             "scholarship": profile.scholarship,
             "grades_1st_sem": profile.grades1stSem,
             "admission_grade": profile.admissionGrade,
-            "classes_passed": profile.classesPassed,
+            "classes_passed": ml_scaled_passed, # <-- The mathematically fair number!
             "debtor": profile.debtor
         }
     }
@@ -572,7 +588,7 @@ async def grade_submission(submission_id: str, grade_data: GradeSubmissionInput,
         await db.aiprediction.create(
             data={"studentId": student_id, "prediction": pred, "confidence": conf}
         )
-        return {"message": "Submission graded and AI updated with average!", "score": grade_data.score, "prediction": pred}
+        return {"message": "Submission graded and AI updated securely!", "score": grade_data.score, "prediction": pred}
 
     except Exception as e:
         print(f"ML Engine Error: {e}")

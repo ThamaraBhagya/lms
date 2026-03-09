@@ -1,11 +1,15 @@
-version: '3.8'
-
 services:
   # 1. The React Dashboard
   frontend:
     build: ./eduflow-frontend
     ports:
       - "3000:3000"
+    volumes:
+      # This line links your Windows folder directly to the Docker container
+      - ./eduflow-frontend:/app
+      # These lines protect the container's internal installed packages
+      - /app/node_modules
+      - /app/.next
     depends_on:
       - core-api
 
@@ -15,7 +19,10 @@ services:
     ports:
       - "4000:4000"
     env_file:
-      - ./core_api/.env  # Grabs your Neon PostgreSQL database password
+      - ./core_api/.env
+    volumes:
+      # Links your Python code so backend changes update instantly too!
+      - ./core_api:/app 
     depends_on:
       - ml-engine
 
@@ -24,3 +31,5 @@ services:
     build: ./ml_core
     ports:
       - "8000:8000"
+    volumes:
+      - ./ml_core:/app

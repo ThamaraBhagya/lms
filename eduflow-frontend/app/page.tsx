@@ -10,26 +10,24 @@ export default function EduFlowDashboard() {
   const [userRole, setUserRole] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   
-  // NEW: Store User Details for the Premium Profile Menu
   const [userFirstName, setUserFirstName] = useState("");
   const [userLastName, setUserLastName] = useState("");
   const [userEmail, setUserEmail] = useState("");
   const [showUserMenu, setShowUserMenu] = useState(false);
 
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
-  const [loginEmail, setLoginEmail] = useState("test@eduflow.local");
-  const [loginPassword, setLoginPassword] = useState("supersecretpassword123");
+  const [loginEmail, setLoginEmail] = useState("test@eduflow.com");
+  const [loginPassword, setLoginPassword] = useState("adminpassword1");
   const [regFirstName, setRegFirstName] = useState("");
   const [regLastName, setRegLastName] = useState("");
   const [regEmail, setRegEmail] = useState("");
   const [regPassword, setRegPassword] = useState("");
   const [regRole, setRegRole] = useState("STUDENT");
 
-  // --- NEW: Premium Toast Notification System ---
   const [toast, setToast] = useState<{msg: string, type: 'success' | 'error'} | null>(null);
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setToast({ msg, type });
-    setTimeout(() => setToast(null), 3500); // Auto-dismiss after 3.5 seconds
+    setTimeout(() => setToast(null), 3500); 
   };
 
   // --- Onboarding & Profile State ---
@@ -69,13 +67,16 @@ export default function EduFlowDashboard() {
   const [assignDesc, setAssignDesc] = useState("");
   const [assignDue, setAssignDue] = useState("");
   
-  const [subUrl, setSubUrl] = useState("");
+  const [subUrls, setSubUrls] = useState<{[key: string]: string}>({});
+  const [isSubmitting, setIsSubmitting] = useState<{[key: string]: boolean}>({});
   const [gradeScores, setGradeScores] = useState<{[key: string]: string}>({});
+  const [isGrading, setIsGrading] = useState<{[key: string]: boolean}>({});
 
-  // --- NEW: Enrollment Key State ---
   const [enrollCourse, setEnrollCourse] = useState<any>(null);
   const [enrollKey, setEnrollKey] = useState("");
   const [isEnrolling, setIsEnrolling] = useState(false);
+
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:4000";
 
   useEffect(() => {
     const savedToken = localStorage.getItem("eduflow_token");
@@ -111,7 +112,7 @@ export default function EduFlowDashboard() {
 
   const checkOnboardingStatus = async () => {
     try {
-      const res = await fetch('http://127.0.0.1:4000/api/profile/me', { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await fetch(`${API_URL}/api/profile/me`, { headers: { 'Authorization': `Bearer ${token}` } });
       if (res.status === 404) setHasProfile(false);
       else if (res.ok) setHasProfile(true);
     } catch (err) { console.error(err); }
@@ -121,7 +122,7 @@ export default function EduFlowDashboard() {
     e.preventDefault();
     setIsOnboarding(true);
     try {
-      const res = await fetch('http://127.0.0.1:4000/api/profile/onboard', {
+      const res = await fetch(`${API_URL}/api/profile/onboard`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ ageAtEnrollment: onboardAge, admissionGrade: onboardAdmission, tuitionUpToDate: onboardTuition, scholarship: onboardScholarship, debtor: onboardDebtor })
@@ -134,7 +135,7 @@ export default function EduFlowDashboard() {
 
   const openEditProfileModal = async () => {
     try {
-      const res = await fetch('http://127.0.0.1:4000/api/profile/me', { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await fetch(`${API_URL}/api/profile/me`, { headers: { 'Authorization': `Bearer ${token}` } });
       if (res.ok) {
         const data = await res.json();
         setEditAge(data.ageAtEnrollment);
@@ -142,7 +143,7 @@ export default function EduFlowDashboard() {
         setEditScholarship(data.scholarship);
         setEditDebtor(data.debtor);
         setShowProfileModal(true);
-        setShowUserMenu(false); // Close dropdown if open
+        setShowUserMenu(false); 
       }
     } catch (err) { showToast("Failed to load profile data.", "error"); }
   };
@@ -151,7 +152,7 @@ export default function EduFlowDashboard() {
     e.preventDefault();
     setIsUpdatingProfile(true);
     try {
-      const res = await fetch('http://127.0.0.1:4000/api/profile/me', {
+      const res = await fetch(`${API_URL}/api/profile/me`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ ageAtEnrollment: editAge, tuitionUpToDate: editTuition, scholarship: editScholarship, debtor: editDebtor })
@@ -168,7 +169,7 @@ export default function EduFlowDashboard() {
       const formData = new URLSearchParams();
       formData.append("username", loginEmail);
       formData.append("password", loginPassword);
-      const res = await fetch('http://127.0.0.1:4000/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: formData });
+      const res = await fetch(`${API_URL}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: formData });
       if (!res.ok) throw new Error("Invalid credentials");
       const data = await res.json();
       
@@ -192,7 +193,7 @@ export default function EduFlowDashboard() {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const res = await fetch('http://127.0.0.1:4000/api/auth/register', {
+      const res = await fetch(`${API_URL}/api/auth/register`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ firstName: regFirstName, lastName: regLastName, email: regEmail, password: regPassword, role: regRole })
       });
@@ -212,7 +213,7 @@ export default function EduFlowDashboard() {
   const fetchStudents = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch('http://127.0.0.1:4000/api/students', { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await fetch(`${API_URL}/api/students`, { headers: { 'Authorization': `Bearer ${token}` } });
       if (res.status === 401) return handleLogout();
       const data = await res.json(); setStudents(data);
     } catch (error) { console.error(error); } finally { setIsLoading(false); }
@@ -220,14 +221,14 @@ export default function EduFlowDashboard() {
 
   const fetchCourses = async () => {
     try {
-      const res = await fetch('http://127.0.0.1:4000/api/courses', { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await fetch(`${API_URL}/api/courses`, { headers: { 'Authorization': `Bearer ${token}` } });
       if (res.ok) { const data = await res.json(); setCourses(data); }
     } catch (error) { console.error(error); }
   };
 
   const fetchLecturers = async () => {
     try {
-      const res = await fetch('http://127.0.0.1:4000/api/users/lecturers', { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await fetch(`${API_URL}/api/users/lecturers`, { headers: { 'Authorization': `Bearer ${token}` } });
       if (res.ok) { const data = await res.json(); setLecturers(data); }
     } catch (error) { console.error(error); }
   };
@@ -237,7 +238,7 @@ export default function EduFlowDashboard() {
     if (!newCourseLecturerId) return showToast("You must assign a lecturer to this course.", "error");
     setIsCreatingCourse(true);
     try {
-      const res = await fetch('http://127.0.0.1:4000/api/courses', {
+      const res = await fetch(`${API_URL}/api/courses`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ courseCode: newCourseCode, title: newCourseTitle, description: newCourseDesc, lecturerId: newCourseLecturerId })
       });
@@ -248,7 +249,6 @@ export default function EduFlowDashboard() {
     } catch (error: any) { showToast(error.message, "error"); } finally { setIsCreatingCourse(false); }
   };
 
-  // --- NEW: Handle Enrollment Key Check ---
   const handleConfirmEnroll = async (e: React.FormEvent) => {
     e.preventDefault();
     if (enrollKey.toUpperCase() !== enrollCourse.courseCode.toUpperCase()) {
@@ -257,7 +257,7 @@ export default function EduFlowDashboard() {
     
     setIsEnrolling(true);
     try {
-      const res = await fetch(`http://127.0.0.1:4000/api/courses/${enrollCourse.id}/enroll`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await fetch(`${API_URL}/api/courses/${enrollCourse.id}/enroll`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
       if (!res.ok) { const err = await res.json(); throw new Error(err.detail || "Failed to enroll"); }
       await fetchCourses();
       showToast(`Successfully enrolled in ${enrollCourse.title}!`, "success");
@@ -269,7 +269,7 @@ export default function EduFlowDashboard() {
     e.preventDefault();
     try {
       const isoDate = new Date(assignDue).toISOString();
-      const res = await fetch(`http://127.0.0.1:4000/api/courses/${selectedCourse.id}/assignments`, {
+      const res = await fetch(`${API_URL}/api/courses/${selectedCourse.id}/assignments`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ title: assignTitle, description: assignDesc, dueDate: isoDate, maxScore: 20 })
       });
@@ -281,23 +281,34 @@ export default function EduFlowDashboard() {
   };
 
   const handleSubmitWork = async (assignmentId: string) => {
-    if (!subUrl) return showToast("Please enter a URL to submit.", "error");
+    const targetUrl = subUrls[assignmentId];
+    if (!targetUrl) return showToast("Please enter a URL to submit.", "error");
+    
+    setIsSubmitting({...isSubmitting, [assignmentId]: true});
     try {
-      const res = await fetch(`http://127.0.0.1:4000/api/assignments/${assignmentId}/submit`, {
+      const res = await fetch(`${API_URL}/api/assignments/${assignmentId}/submit`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({ contentUrl: subUrl })
+        body: JSON.stringify({ contentUrl: targetUrl })
       });
       if (!res.ok) throw new Error("Failed to submit work");
-      setSubUrl(""); await fetchCourses(); 
+      
+      setSubUrls({...subUrls, [assignmentId]: ""}); 
+      await fetchCourses(); 
       showToast("Work submitted successfully!", "success");
-    } catch (error: any) { showToast(error.message, "error"); }
+    } catch (error: any) { 
+        showToast(error.message, "error"); 
+    } finally {
+        setIsSubmitting({...isSubmitting, [assignmentId]: false});
+    }
   };
 
   const handleGradeSubmission = async (submissionId: string) => {
     const scoreToSubmit = gradeScores[submissionId];
     if (!scoreToSubmit) return showToast("Please enter a score.", "error");
+    
+    setIsGrading({...isGrading, [submissionId]: true});
     try {
-      const res = await fetch(`http://127.0.0.1:4000/api/submissions/${submissionId}/grade`, {
+      const res = await fetch(`${API_URL}/api/submissions/${submissionId}/grade`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ score: Number(scoreToSubmit) })
       });
@@ -305,12 +316,19 @@ export default function EduFlowDashboard() {
       await fetchCourses();
       if (userRole !== 'STUDENT') await fetchStudents(); 
       showToast("Grade saved and AI Prediction updated!", "success");
-    } catch (error: any) { showToast(error.message, "error"); }
+    } catch (error: any) { 
+        showToast(error.message, "error"); 
+    } finally {
+        setIsGrading({...isGrading, [submissionId]: false});
+    }
   };
 
-  const isCourseOwner = selectedCourse && (userRole === 'ADMIN' || (userRole === 'LECTURER' && selectedCourse.lecturerId === userId));
 
-  // Data Viz Logic
+  // =======================================
+  // PRE-RENDER LOGIC (Cleaned up from JSX)
+  // =======================================
+  
+  // 1. Chart Data
   const generatePieChartData = () => {
     let graduate = 0; let dropout = 0; let enrolled = 0; let pending = 0;
     students.forEach(s => {
@@ -329,12 +347,73 @@ export default function EduFlowDashboard() {
       { name: 'Awaiting Data', value: pending, color: '#94a3b8' } 
     ].filter(d => d.value > 0);
   };
+  
   const generateBarChartData = () => {
     return students.filter(s => s.profile !== null).map(s => ({
         name: `${s.firstName} ${s.lastName[0]}.`, Grade: s.profile.grades1stSem || 0, Passed: s.profile.classesPassed || 0
     }));
   };
-  const pieData = generatePieChartData(); const barData = generateBarChartData();
+  
+  const pieData = generatePieChartData(); 
+  const barData = generateBarChartData();
+
+  // 2. Course Filtering Logic
+  let primaryCourses: any[] = [];
+  let secondaryCourses: any[] = [];
+  let primaryTitle = "";
+  let secondaryTitle = "";
+
+  if (userRole === 'STUDENT') {
+    primaryCourses = courses.filter(c => c.enrollments?.some((e:any) => e.studentId === userId));
+    secondaryCourses = courses.filter(c => !c.enrollments?.some((e:any) => e.studentId === userId));
+    primaryTitle = "My Enrolled Modules";
+    secondaryTitle = "Available Modules";
+  } else if (userRole === 'LECTURER') {
+    primaryCourses = courses.filter(c => c.lecturerId === userId);
+    secondaryCourses = courses.filter(c => c.lecturerId !== userId);
+    primaryTitle = "My Assigned Modules";
+    secondaryTitle = "Other Faculty Modules";
+  } else {
+    primaryCourses = courses;
+    primaryTitle = "All System Modules";
+  }
+
+  // Helper function to render a grid of courses
+  const renderCourseGrid = (courseList: any[]) => (
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8 mb-12">
+      {courseList.map((course: any) => {
+        const isEnrolled = course.enrollments?.some((e: any) => e.studentId === userId);
+        
+        const handleCardClick = () => {
+          if (userRole === 'STUDENT' && !isEnrolled) {
+            setEnrollCourse(course); 
+          } else {
+            setSelectedCourse(course); 
+          }
+        };
+
+        return (
+          <div key={course.id} onClick={handleCardClick} className="group bg-white p-8 rounded-3xl shadow-sm border border-slate-200 hover:shadow-xl hover:border-blue-200 transition-all cursor-pointer transform hover:-translate-y-1 flex flex-col h-full">
+            <div className="flex justify-between items-start mb-6"><span className="px-3 py-1.5 bg-slate-100 group-hover:bg-blue-50 text-slate-700 group-hover:text-blue-700 text-xs font-bold rounded-lg tracking-wider transition-colors">{course.courseCode}</span><span className="flex items-center gap-1.5 text-xs font-bold text-slate-400 group-hover:text-slate-600 transition-colors"><svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"></path></svg>{course.enrollments?.length || 0}</span></div>
+            <h3 className="text-xl font-bold text-slate-900 mb-3 group-hover:text-blue-600 transition-colors">{course.title}</h3>
+            <p className="text-sm text-slate-500 mb-8 leading-relaxed flex-grow line-clamp-3">{course.description}</p>
+            <div className="pt-6 border-t border-slate-100 flex justify-between items-center mt-auto">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-gradient-to-br from-slate-200 to-slate-300 flex items-center justify-center text-xs font-bold text-slate-700">{course.lecturer?.firstName?.[0]}{course.lecturer?.lastName?.[0]}</div>
+                <span className="text-sm font-bold text-slate-700">Dr. {course.lecturer?.lastName}</span>
+              </div>
+              {userRole === 'STUDENT' && (isEnrolled ? <button disabled className="px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-sm font-bold cursor-default flex items-center gap-1.5"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>Enrolled</button> : <button onClick={(e) => { e.stopPropagation(); setEnrollCourse(course); }} className="px-5 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-all hover:shadow-lg shadow-blue-600/30 active:scale-95">Enroll</button>)}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  // 3. Selected Course Checks
+  const isCourseOwner = selectedCourse && (userRole === 'ADMIN' || (userRole === 'LECTURER' && selectedCourse.lecturerId === userId));
+  const isSelectedCourseEnrolled = selectedCourse?.enrollments?.some((e: any) => e.studentId === userId);
+
 
   // =======================================
   // VIEW: AUTHETICATION (Login / Register)
@@ -345,17 +424,14 @@ export default function EduFlowDashboard() {
         className="min-h-screen flex items-center justify-center p-4 font-sans relative overflow-hidden bg-cover bg-center"
         style={{ backgroundImage: "url('https://images.unsplash.com/photo-1522202176988-66273c2fd55f?q=80&w=2071&auto=format&fit=crop')" }}
       >
-        {/* Dark Glass Overlay */}
         <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"></div>
 
-        {/* Premium Toast Overlay */}
         {toast && (
           <div className={`absolute top-6 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-full shadow-2xl text-sm font-bold text-white transition-all animate-slide-in-down z-50 ${toast.type === 'error' ? 'bg-rose-500' : 'bg-emerald-500'}`}>
             {toast.msg}
           </div>
         )}
 
-        {/* Auth Box - Tweaked transparency (bg-white/80) for a better glass effect */}
         <div className="bg-white/80 backdrop-blur-xl p-8 rounded-3xl shadow-2xl w-full max-w-md border border-white/40 z-10 relative">
           <div className="text-center mb-8">
             <div className="w-12 h-12 bg-blue-600 rounded-xl mx-auto mb-4 flex items-center justify-center shadow-lg shadow-blue-600/30">
@@ -365,41 +441,25 @@ export default function EduFlowDashboard() {
             <p className="text-slate-600 mt-2 text-sm font-medium">Next-Generation Learning Analytics</p>
           </div>
 
-          {/* Toggle Buttons - Changed to transparent white so it blends with the glass */}
           <div className="flex bg-white/50 backdrop-blur-md p-1 rounded-xl mb-8 border border-white/60 shadow-sm">
-            <button 
-              onClick={() => setAuthMode('login')} 
-              className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all ${authMode === 'login' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-600 hover:text-slate-800'}`}
-            >
-              Sign In
-            </button>
-            <button 
-              onClick={() => setAuthMode('register')} 
-              className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all ${authMode === 'register' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-600 hover:text-slate-800'}`}
-            >
-              Register
-            </button>
+            <button onClick={() => setAuthMode('login')} className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all ${authMode === 'login' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-600 hover:text-slate-800'}`}>Sign In</button>
+            <button onClick={() => setAuthMode('register')} className={`flex-1 py-2.5 text-sm font-bold rounded-lg transition-all ${authMode === 'register' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-600 hover:text-slate-800'}`}>Register</button>
           </div>
           
-          {/* LOGIN FORM */}
           {authMode === 'login' && (
             <form onSubmit={handleLogin} className="space-y-5">
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Email Address</label>
-                {/* Inputs changed from bg-slate-50 to translucent white with a border */}
                 <input type="email" value={loginEmail} onChange={(e) => setLoginEmail(e.target.value)} className="w-full bg-white/60 border border-white/50 backdrop-blur-sm rounded-xl p-3 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-slate-900 transition-all shadow-sm" required />
               </div>
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">Password</label>
                 <input type="password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} className="w-full bg-white/60 border border-white/50 backdrop-blur-sm rounded-xl p-3 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-slate-900 transition-all shadow-sm" required />
               </div>
-              <button type="submit" className="w-full mt-2 bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition-all hover:shadow-lg hover:shadow-blue-600/30 active:scale-95">
-                Access Dashboard
-              </button>
+              <button type="submit" className="w-full mt-2 bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition-all hover:shadow-lg hover:shadow-blue-600/30 active:scale-95">Access Dashboard</button>
             </form>
           )}
 
-          {/* REGISTER FORM */}
           {authMode === 'register' && (
             <form onSubmit={handleRegister} className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
@@ -427,9 +487,7 @@ export default function EduFlowDashboard() {
                   <option value="LECTURER">Lecturer / Faculty</option>
                 </select>
               </div>
-              <button type="submit" className="w-full mt-4 bg-slate-900 text-white font-bold py-3 rounded-xl hover:bg-slate-800 transition-all hover:shadow-lg active:scale-95">
-                Create Account
-              </button>
+              <button type="submit" className="w-full mt-4 bg-slate-900 text-white font-bold py-3 rounded-xl hover:bg-slate-800 transition-all hover:shadow-lg active:scale-95">Create Account</button>
             </form>
           )}
         </div>
@@ -469,7 +527,6 @@ export default function EduFlowDashboard() {
   return (
     <main className="min-h-screen bg-slate-50 p-8 font-sans text-slate-800 relative">
       
-      {/* TOAST NOTIFICATION OVERLAY */}
       {toast && (
         <div className={`fixed top-6 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-full shadow-xl text-sm font-bold text-white transition-all z-50 ${toast.type === 'error' ? 'bg-rose-500 shadow-rose-500/20' : 'bg-slate-900 shadow-slate-900/20'}`}>
           {toast.msg}
@@ -528,7 +585,6 @@ export default function EduFlowDashboard() {
               <button onClick={() => setSelectedCourse(null)} className="w-10 h-10 flex items-center justify-center bg-slate-100 rounded-full hover:bg-slate-200 text-slate-500 transition-colors">&times;</button>
             </div>
 
-            {/* --- NEW: Enrolled Students List (Faculty Only) --- */}
             {userRole !== 'STUDENT' && (
               <div className="mb-10 bg-slate-50 p-5 rounded-2xl border border-slate-100">
                 <h3 className="text-sm font-bold text-slate-900 mb-3 uppercase tracking-wider">Class Roster ({selectedCourse.enrollments?.length || 0})</h3>
@@ -554,7 +610,9 @@ export default function EduFlowDashboard() {
 
             <h3 className="text-xl font-bold text-slate-900 mb-6">Assignments</h3>
             
-            {(!selectedCourse.assignments || selectedCourse.assignments.length === 0) ? (
+            {userRole === 'STUDENT' && !isSelectedCourseEnrolled ? (
+              <div className="bg-slate-50 border border-dashed border-slate-300 rounded-2xl p-8 text-center"><p className="text-slate-500 font-medium">🔒 You must enroll in this course to view and submit assignments.</p></div>
+            ) : (!selectedCourse.assignments || selectedCourse.assignments.length === 0) ? (
               <div className="bg-slate-50 border border-dashed border-slate-300 rounded-2xl p-8 text-center"><p className="text-slate-500 font-medium">No assignments posted yet.</p></div>
             ) : (
               <div className="space-y-6">
@@ -581,8 +639,10 @@ export default function EduFlowDashboard() {
                             </div>
                           ) : (
                             <div className="flex gap-3">
-                              <input type="url" placeholder="Paste link to your work (e.g. Google Doc)" value={subUrl} onChange={(e) => setSubUrl(e.target.value)} className="flex-1 bg-slate-50 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none border border-slate-200" />
-                              <button onClick={() => handleSubmitWork(assignment.id)} className="px-6 py-3 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-600/20 active:scale-95">Submit</button>
+                              <input type="url" placeholder="Paste link to your work" value={subUrls[assignment.id] || ""} onChange={(e) => setSubUrls({...subUrls, [assignment.id]: e.target.value})} className="flex-1 bg-slate-50 rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none border border-slate-200" />
+                              <button onClick={() => handleSubmitWork(assignment.id)} disabled={isSubmitting[assignment.id]} className="px-6 py-3 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-600/20 active:scale-95 disabled:opacity-50">
+                                {isSubmitting[assignment.id] ? "Submitting..." : "Submit"}
+                              </button>
                             </div>
                           )}
                         </div>
@@ -592,7 +652,6 @@ export default function EduFlowDashboard() {
                         <div className="pt-5 border-t border-slate-100">
                           <h5 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-4">Student Submissions ({assignment.submissions?.length || 0})</h5>
                           {assignment.submissions?.map((sub: any) => {
-                             // Find student name from course enrollments
                              const enrolledInfo = selectedCourse.enrollments?.find((e:any) => e.studentId === sub.studentId);
                              const studentName = enrolledInfo ? `${enrolledInfo.student.firstName} ${enrolledInfo.student.lastName}` : `ID: ${sub.studentId.substring(0,8)}`;
 
@@ -611,7 +670,9 @@ export default function EduFlowDashboard() {
                                   ) : (
                                     <>
                                       <input type="number" step="0.1" max="20" placeholder="Score" value={gradeScores[sub.id] || ''} onChange={(e) => setGradeScores({...gradeScores, [sub.id]: e.target.value})} className="w-24 border border-slate-200 rounded-lg p-2 text-sm outline-none focus:ring-2 focus:ring-blue-500 text-center font-bold" />
-                                      <button onClick={() => handleGradeSubmission(sub.id)} className="px-4 py-2 bg-slate-900 text-white font-bold text-sm rounded-lg hover:bg-slate-800 transition-all active:scale-95">Save</button>
+                                      <button onClick={() => handleGradeSubmission(sub.id)} disabled={isGrading[sub.id]} className="px-4 py-2 bg-slate-900 text-white font-bold text-sm rounded-lg hover:bg-slate-800 transition-all active:scale-95 disabled:opacity-50">
+                                        {isGrading[sub.id] ? "Saving..." : "Save"}
+                                      </button>
                                     </>
                                   )}
                                 </div>
@@ -629,7 +690,6 @@ export default function EduFlowDashboard() {
         </div>
       )}
 
-      {/* CREATE MODALS (Course / Assignment) */}
       {showAssignmentModal && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden border border-slate-100">
@@ -695,7 +755,6 @@ export default function EduFlowDashboard() {
 
           {showUserMenu && (
             <>
-              {/* Invisible overlay to close menu when clicking outside */}
               <div className="fixed inset-0 z-40" onClick={() => setShowUserMenu(false)}></div>
               
               <div className="absolute right-0 mt-3 w-64 bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 overflow-hidden transform animate-slide-in-down">
@@ -742,34 +801,34 @@ export default function EduFlowDashboard() {
              <div className="p-6 border-b border-slate-100 bg-slate-50/50"><h2 className="text-lg font-extrabold text-slate-900">Detailed Student Roster</h2></div>
              <div className="overflow-x-auto">
                <table className="w-full text-left border-collapse whitespace-nowrap">
-                  <thead>
-                    <tr className="bg-white border-b border-slate-100 text-xs font-bold text-slate-400 uppercase tracking-widest">
-                      <th className="p-5">Student</th><th className="p-5 text-center">Age</th><th className="p-5 text-center">Admission</th><th className="p-5 text-center">Tuition Paid</th><th className="p-5 text-center">Scholarship</th><th className="p-5 text-center">In Debt</th><th className="p-5 text-center">Passed</th><th className="p-5 text-center text-blue-600 bg-blue-50/30">Avg Grade</th><th className="p-5">AI Prediction</th><th className="p-5">Confidence</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {students.map((student: any) => {
-                      const predictionRec = student.aiPredictions?.[0]; const hasProf = !!student.profile;
-                      return (
-                        <tr key={student.id} className="hover:bg-slate-50 transition-colors text-sm group">
-                          <td className="p-5"><div className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors">{student.firstName} {student.lastName}</div><div className="text-xs text-slate-400 font-mono mt-0.5">#{student.id.substring(0, 8)}</div></td>
-                          <td className="p-5 text-center font-medium text-slate-600">{hasProf ? student.profile.ageAtEnrollment : '-'}</td>
-                          <td className="p-5 text-center font-medium text-slate-600">{hasProf ? student.profile.admissionGrade : '-'}</td>
-                          <td className="p-5 text-center">{hasProf ? (student.profile.tuitionUpToDate ? <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span> : <span className="w-2 h-2 rounded-full bg-rose-500 inline-block"></span>) : '-'}</td>
-                          <td className="p-5 text-center">{hasProf ? (student.profile.scholarship ? <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span> : <span className="w-2 h-2 rounded-full bg-slate-300 inline-block"></span>) : '-'}</td>
-                          <td className="p-5 text-center">{hasProf ? (student.profile.debtor ? <span className="w-2 h-2 rounded-full bg-rose-500 inline-block"></span> : <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>) : '-'}</td>
-                          <td className="p-5 text-center font-bold text-slate-800">{hasProf ? student.profile.classesPassed : '-'}</td>
-                          <td className="p-5 text-center font-black text-blue-600 bg-blue-50/30 text-base">{hasProf ? student.profile.grades1stSem : '-'}</td>
-                          <td className="p-5">
-                            {predictionRec ? (
-                               <span className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider ${predictionRec.prediction === 'Graduate' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>{predictionRec.prediction}</span>
-                            ) : <span className="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-500 border border-slate-200 bg-slate-50">{hasProf ? "Pending" : "No Data"}</span>}
-                          </td>
-                          <td className="p-5 font-bold text-slate-700">{predictionRec?.confidence ? `${predictionRec.confidence}%` : '-'}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
+                 <thead>
+                   <tr className="bg-white border-b border-slate-100 text-xs font-bold text-slate-400 uppercase tracking-widest">
+                     <th className="p-5">Student</th><th className="p-5 text-center">Age</th><th className="p-5 text-center">Admission</th><th className="p-5 text-center">Tuition Paid</th><th className="p-5 text-center">Scholarship</th><th className="p-5 text-center">In Debt</th><th className="p-5 text-center">Passed</th><th className="p-5 text-center text-blue-600 bg-blue-50/30">Avg Grade</th><th className="p-5">AI Prediction</th><th className="p-5">Confidence</th>
+                   </tr>
+                 </thead>
+                 <tbody className="divide-y divide-slate-50">
+                   {students.map((student: any) => {
+                     const predictionRec = student.aiPredictions?.[0]; const hasProf = !!student.profile;
+                     return (
+                       <tr key={student.id} className="hover:bg-slate-50 transition-colors text-sm group">
+                         <td className="p-5"><div className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors">{student.firstName} {student.lastName}</div><div className="text-xs text-slate-400 font-mono mt-0.5">#{student.id.substring(0, 8)}</div></td>
+                         <td className="p-5 text-center font-medium text-slate-600">{hasProf ? student.profile.ageAtEnrollment : '-'}</td>
+                         <td className="p-5 text-center font-medium text-slate-600">{hasProf ? student.profile.admissionGrade : '-'}</td>
+                         <td className="p-5 text-center">{hasProf ? (student.profile.tuitionUpToDate ? <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span> : <span className="w-2 h-2 rounded-full bg-rose-500 inline-block"></span>) : '-'}</td>
+                         <td className="p-5 text-center">{hasProf ? (student.profile.scholarship ? <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span> : <span className="w-2 h-2 rounded-full bg-slate-300 inline-block"></span>) : '-'}</td>
+                         <td className="p-5 text-center">{hasProf ? (student.profile.debtor ? <span className="w-2 h-2 rounded-full bg-rose-500 inline-block"></span> : <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>) : '-'}</td>
+                         <td className="p-5 text-center font-bold text-slate-800">{hasProf ? student.profile.classesPassed : '-'}</td>
+                         <td className="p-5 text-center font-black text-blue-600 bg-blue-50/30 text-base">{hasProf ? student.profile.grades1stSem : '-'}</td>
+                         <td className="p-5">
+                           {predictionRec ? (
+                              <span className={`px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-wider ${predictionRec.prediction === 'Graduate' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>{predictionRec.prediction}</span>
+                           ) : <span className="px-3 py-1.5 rounded-lg text-xs font-bold text-slate-500 border border-slate-200 bg-slate-50">{hasProf ? "Pending" : "No Data"}</span>}
+                         </td>
+                         <td className="p-5 font-bold text-slate-700">{predictionRec?.confidence ? `${predictionRec.confidence}%` : '-'}</td>
+                       </tr>
+                     );
+                   })}
+                 </tbody>
                </table>
              </div>
           </div>
@@ -778,30 +837,19 @@ export default function EduFlowDashboard() {
 
       {currentView === 'courses' && (
         <section className="animate-fade-in">
-          <div className="flex justify-between items-center mb-8">
-            <h2 className="text-2xl font-extrabold tracking-tight text-slate-900">Active Modules</h2>
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-extrabold tracking-tight text-slate-900">{primaryTitle}</h2>
             {userRole === 'ADMIN' && (<button onClick={() => setShowCourseModal(true)} className="px-5 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-all hover:shadow-lg hover:-translate-y-0.5 active:scale-95">+ New Course</button>)}
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
-            {courses.length === 0 ? <p className="text-slate-500 font-medium p-4">No modules found.</p> : courses.map((course: any) => {
-              const isEnrolled = course.enrollments?.some((e: any) => e.studentId === userId);
-              return (
-                <div key={course.id} onClick={() => setSelectedCourse(course)} className="group bg-white p-8 rounded-3xl shadow-sm border border-slate-200 hover:shadow-xl hover:border-blue-200 transition-all cursor-pointer transform hover:-translate-y-1 flex flex-col h-full">
-                  <div className="flex justify-between items-start mb-6"><span className="px-3 py-1.5 bg-slate-100 group-hover:bg-blue-50 text-slate-700 group-hover:text-blue-700 text-xs font-bold rounded-lg tracking-wider transition-colors">{course.courseCode}</span><span className="flex items-center gap-1.5 text-xs font-bold text-slate-400 group-hover:text-slate-600 transition-colors"><svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"></path></svg>{course.enrollments?.length || 0}</span></div>
-                  <h3 className="text-xl font-bold text-slate-900 mb-3 group-hover:text-blue-600 transition-colors">{course.title}</h3>
-                  <p className="text-sm text-slate-500 mb-8 leading-relaxed flex-grow line-clamp-3">{course.description}</p>
-                  <div className="pt-6 border-t border-slate-100 flex justify-between items-center mt-auto">
-                    <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-gradient-to-br from-slate-200 to-slate-300 flex items-center justify-center text-xs font-bold text-slate-700">{course.lecturer?.firstName?.[0]}{course.lecturer?.lastName?.[0]}</div>
-                      <span className="text-sm font-bold text-slate-700">Dr. {course.lecturer?.lastName}</span>
-                    </div>
-                    {userRole === 'STUDENT' && (isEnrolled ? <button disabled className="px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-sm font-bold cursor-default flex items-center gap-1.5"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>Enrolled</button> : <button onClick={(e) => { e.stopPropagation(); setEnrollCourse(course); }} className="px-5 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-all hover:shadow-lg shadow-blue-600/30 active:scale-95">Enroll</button>)}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          {primaryCourses.length === 0 ? <p className="text-slate-500 font-medium p-4 mb-8">No modules found.</p> : renderCourseGrid(primaryCourses)}
+
+          {secondaryCourses.length > 0 && (
+            <>
+              <h2 className="text-2xl font-extrabold tracking-tight text-slate-900 mb-6">{secondaryTitle}</h2>
+              {renderCourseGrid(secondaryCourses)}
+            </>
+          )}
         </section>
       )}
     </main>
