@@ -5,7 +5,7 @@ from security import get_current_user
 
 router = APIRouter(prefix="/api/courses", tags=["Courses"])
 
-@router.post("/")
+@router.post("")
 async def create_course(course: CourseInput, current_user = Depends(get_current_user)):
     if current_user.role != "ADMIN":
         raise HTTPException(status_code=403, detail="Only Administrators can create courses.")
@@ -23,7 +23,7 @@ async def create_course(course: CourseInput, current_user = Depends(get_current_
     )
     return {"message": "Course created successfully", "course": new_course}
 
-@router.get("/")
+@router.get("")
 async def get_courses(current_user = Depends(get_current_user)):
     return await db.course.find_many(
         include={
