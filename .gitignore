@@ -14,3 +14,5 @@ prisma/.env
 
 # OS Files
 .DS_Store
+
+*.pem
