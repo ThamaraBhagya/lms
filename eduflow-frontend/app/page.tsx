@@ -154,7 +154,7 @@ export default function EduFlowDashboard() {
 
   const fetchCourses = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/courses`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await fetch(`${API_URL}/api/courses/`, { headers: { 'Authorization': `Bearer ${token}` } });
       if (res.ok) { const data = await res.json(); setCourses(data); }
     } catch (error) { console.error(error); }
   };
@@ -199,7 +199,7 @@ export default function EduFlowDashboard() {
     e.preventDefault(); if (!newCourseLecturerId) return showToast("Assign a lecturer.", "error");
     setIsCreatingCourse(true);
     try {
-      const res = await fetch(`${API_URL}/api/courses`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ courseCode: newCourseCode, title: newCourseTitle, description: newCourseDesc, lecturerId: newCourseLecturerId }) });
+      const res = await fetch(`${API_URL}/api/courses/`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ courseCode: newCourseCode, title: newCourseTitle, description: newCourseDesc, lecturerId: newCourseLecturerId }) });
       if (!res.ok) { const err = await res.json(); throw new Error(err.detail || "Failed to create"); }
       await fetchCourses(); setShowCourseModal(false); setNewCourseCode(""); setNewCourseTitle(""); setNewCourseDesc(""); setNewCourseLecturerId("");
       showToast("Course created!", "success");
