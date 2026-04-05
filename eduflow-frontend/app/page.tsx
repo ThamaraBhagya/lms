@@ -100,7 +100,7 @@ export default function EduFlowDashboard() {
   // ================= API CALLS =================
   const checkOnboardingStatus = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/profile/me`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await fetch(`/api/profile/me`, { headers: { 'Authorization': `Bearer ${token}` } });
       if (res.status === 404) setHasProfile(false);
       else if (res.ok) setHasProfile(true);
     } catch (err) { console.error(err); }
@@ -110,7 +110,7 @@ export default function EduFlowDashboard() {
     e.preventDefault();
     try {
       const formData = new URLSearchParams({ username: email, password: pass });
-      const res = await fetch(`${API_URL}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: formData });
+      const res = await fetch(`/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: formData });
       if (!res.ok) throw new Error("Invalid credentials");
       const data = await res.json();
       
@@ -131,7 +131,7 @@ export default function EduFlowDashboard() {
   const handleRegister = async (e: React.FormEvent, regData: any) => {
     e.preventDefault();
     try {
-      const res = await fetch(`${API_URL}/api/auth/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(regData) });
+      const res = await fetch(`/api/auth/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(regData) });
       if (!res.ok) { const err = await res.json(); throw new Error(err.detail || "Registration failed"); }
       showToast("Account created! Please sign in.", "success");
     } catch (err: any) { showToast(err.message, "error"); }
@@ -146,7 +146,7 @@ export default function EduFlowDashboard() {
   const fetchStudents = async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/students`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await fetch(`/api/students`, { headers: { 'Authorization': `Bearer ${token}` } });
       if (res.status === 401) return handleLogout();
       const data = await res.json(); setStudents(data);
     } catch (error) { console.error(error); } finally { setIsLoading(false); }
@@ -154,14 +154,14 @@ export default function EduFlowDashboard() {
 
   const fetchCourses = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/courses`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await fetch(`/api/courses`, { headers: { 'Authorization': `Bearer ${token}` } });
       if (res.ok) { const data = await res.json(); setCourses(data); }
     } catch (error) { console.error(error); }
   };
 
   const fetchLecturers = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/users/lecturers`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await fetch(`/api/users/lecturers`, { headers: { 'Authorization': `Bearer ${token}` } });
       if (res.ok) { const data = await res.json(); setLecturers(data); }
     } catch (error) { console.error(error); }
   };
@@ -169,7 +169,7 @@ export default function EduFlowDashboard() {
   const submitOnboarding = async (e: React.FormEvent, data: any) => {
     e.preventDefault(); setIsOnboarding(true);
     try {
-      const res = await fetch(`${API_URL}/api/profile/onboard`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ ageAtEnrollment: data.age, admissionGrade: data.admission, tuitionUpToDate: data.tuition, scholarship: data.scholarship, debtor: data.debtor }) });
+      const res = await fetch(`/api/profile/onboard`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ ageAtEnrollment: data.age, admissionGrade: data.admission, tuitionUpToDate: data.tuition, scholarship: data.scholarship, debtor: data.debtor }) });
       if (!res.ok) throw new Error("Failed to save profile.");
       setHasProfile(true); showToast("Profile complete!", "success");
     } catch (err: any) { showToast(err.message, "error"); } finally { setIsOnboarding(false); }
@@ -177,7 +177,7 @@ export default function EduFlowDashboard() {
 
   const openEditProfileModal = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/profile/me`, { headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await fetch(`/api/profile/me`, { headers: { 'Authorization': `Bearer ${token}` } });
       if (res.ok) {
         const data = await res.json();
         setEditAge(data.ageAtEnrollment); setEditTuition(data.tuitionUpToDate); setEditScholarship(data.scholarship); setEditDebtor(data.debtor);
@@ -189,7 +189,7 @@ export default function EduFlowDashboard() {
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault(); setIsUpdatingProfile(true);
     try {
-      const res = await fetch(`${API_URL}/api/profile/me`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ ageAtEnrollment: editAge, tuitionUpToDate: editTuition, scholarship: editScholarship, debtor: editDebtor }) });
+      const res = await fetch(`/api/profile/me`, { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ ageAtEnrollment: editAge, tuitionUpToDate: editTuition, scholarship: editScholarship, debtor: editDebtor }) });
       if (!res.ok) throw new Error("Failed to update");
       showToast("Profile updated!", "success"); setShowProfileModal(false);
     } catch (err: any) { showToast(err.message, "error"); } finally { setIsUpdatingProfile(false); }
@@ -199,7 +199,7 @@ export default function EduFlowDashboard() {
     e.preventDefault(); if (!newCourseLecturerId) return showToast("Assign a lecturer.", "error");
     setIsCreatingCourse(true);
     try {
-      const res = await fetch(`${API_URL}/api/courses`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ courseCode: newCourseCode, title: newCourseTitle, description: newCourseDesc, lecturerId: newCourseLecturerId }) });
+      const res = await fetch(`/api/courses`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ courseCode: newCourseCode, title: newCourseTitle, description: newCourseDesc, lecturerId: newCourseLecturerId }) });
       if (!res.ok) { const err = await res.json(); throw new Error(err.detail || "Failed to create"); }
       await fetchCourses(); setShowCourseModal(false); setNewCourseCode(""); setNewCourseTitle(""); setNewCourseDesc(""); setNewCourseLecturerId("");
       showToast("Course created!", "success");
@@ -211,7 +211,7 @@ export default function EduFlowDashboard() {
     if (enrollKey.toUpperCase() !== enrollCourse.courseCode.toUpperCase()) return showToast("Incorrect Key.", "error");
     setIsEnrolling(true);
     try {
-      const res = await fetch(`${API_URL}/api/courses/${enrollCourse.id}/enroll`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
+      const res = await fetch(`/api/courses/${enrollCourse.id}/enroll`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
       if (!res.ok) { const err = await res.json(); throw new Error(err.detail || "Failed to enroll"); }
       await fetchCourses(); showToast(`Enrolled in ${enrollCourse.title}!`, "success");
       setEnrollCourse(null); setEnrollKey("");
@@ -222,7 +222,7 @@ export default function EduFlowDashboard() {
     e.preventDefault();
     try {
       const isoDate = new Date(assignDue).toISOString();
-      const res = await fetch(`${API_URL}/api/courses/${selectedCourse.id}/assignments`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ title: assignTitle, description: assignDesc, dueDate: isoDate, maxScore: 20 }) });
+      const res = await fetch(`/api/courses/${selectedCourse.id}/assignments`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ title: assignTitle, description: assignDesc, dueDate: isoDate, maxScore: 20 }) });
       if (!res.ok) { const err = await res.json(); throw new Error(err.detail || "Failed to create"); }
       await fetchCourses(); setShowAssignmentModal(false); setAssignTitle(""); setAssignDesc(""); setAssignDue("");
       showToast("Assignment posted!", "success");
@@ -234,7 +234,7 @@ export default function EduFlowDashboard() {
     if (!targetUrl) return showToast("Please enter a URL.", "error");
     setIsSubmitting({...isSubmitting, [assignmentId]: true});
     try {
-      const res = await fetch(`${API_URL}/api/assignments/${assignmentId}/submit`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ contentUrl: targetUrl }) });
+      const res = await fetch(`/api/assignments/${assignmentId}/submit`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ contentUrl: targetUrl }) });
       if (!res.ok) throw new Error("Failed to submit");
       setSubUrls({...subUrls, [assignmentId]: ""}); await fetchCourses(); showToast("Work submitted!", "success");
     } catch (error: any) { showToast(error.message, "error"); } finally { setIsSubmitting({...isSubmitting, [assignmentId]: false}); }
@@ -245,7 +245,7 @@ export default function EduFlowDashboard() {
     if (!scoreToSubmit) return showToast("Enter a score.", "error");
     setIsGrading({...isGrading, [submissionId]: true});
     try {
-      const res = await fetch(`${API_URL}/api/submissions/${submissionId}/grade`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ score: Number(scoreToSubmit) }) });
+      const res = await fetch(`/api/submissions/${submissionId}/grade`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }, body: JSON.stringify({ score: Number(scoreToSubmit) }) });
       if (!res.ok) { const err = await res.json(); throw new Error(err.detail || "Failed to grade"); }
       await fetchCourses(); if (userRole !== 'STUDENT') await fetchStudents(); showToast("Grade saved!", "success");
     } catch (error: any) { showToast(error.message, "error"); } finally { setIsGrading({...isGrading, [submissionId]: false}); }
