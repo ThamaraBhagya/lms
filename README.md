@@ -5,7 +5,7 @@
 
 **EduFlow** is a modern , microservices-based Learning Management System that integrates advanced machine learning capabilities to predict and prevent student attrition. The platform provides real-time analytics, intelligent student profiling, and comprehensive course management tools to help educational institutions optimize student outcomes.
 
-The system architecture employs a **three-tier microservice pattern**, separating concerns across a React-based frontend, FastAPI-powered backend services, and a dedicated ML inference engine—all containerized using Docker for seamless deployment and scalability.
+The system architecture employs a **three-tier microservice pattern**, separating concerns across a React-based frontend, FastAPI-powered backend services, and a dedicated ML inference engine—all containerized using Docker for seamless deployment and scalability
 
 ---
 
