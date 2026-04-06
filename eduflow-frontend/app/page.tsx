@@ -65,7 +65,7 @@ export default function EduFlowDashboard() {
   const [enrollKey, setEnrollKey] = useState("");
   const [isEnrolling, setIsEnrolling] = useState(false);
 
-  const API_URL =  "https://eduflow-api.myvnc.com";
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
   console.log('API_URL being used:', API_URL);
 
   useEffect(() => {
