@@ -3,9 +3,11 @@
 
 ##  Project Overview
 
-**EduFlow** is a modern , microservices-based Learning Management System that integrates advanced machine learning capabilities to predict and prevent student attrition. The platform provides real-time analytics, intelligent student profiling, and comprehensive course management tools to help educational institutions optimize student outcomes.
+**EduFlow** is a smart Learning Management System (LMS) built to help educational institutions optimize student success and prevent dropouts. 
 
-The system architecture employs a **three-tier microservice pattern**, separating concerns across a React-based frontend, FastAPI-powered backend services, and a dedicated ML inference engine—all containerized using Docker for seamless deployment and scalability
+* **What it does:** Provides a complete suite of tools to manage courses, assignments, and user profiles (Students, Lecturers, Admins).
+* **The AI Advantage:** Uses a built-in machine learning engine to analyze student performance in real-time, predicting if a student might drop out so teachers can intervene early.
+* **Under the hood:** Built using a modern, fast, and scalable setup, splitting the workload across a React frontend, a Python (FastAPI) backend, and a dedicated AI engine—all neatly packaged in Docker.
 
 ---
 
